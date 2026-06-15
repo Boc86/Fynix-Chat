@@ -5,6 +5,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { useChatStore, useUIStore, useConfigStore } from '@/stores/chat-store'
 import { useConversations, usePreferences, usePersona } from '@/lib/hooks'
 import { createNIMClient } from '@/lib/providers/nvidia-nim'
+import { generateId } from '@/lib/storage'
 import type { Message } from '@/types'
 
 export function ChatView() {
@@ -70,7 +71,7 @@ export function ChatView() {
 
     const userContent = input.trim()
     const imageAttachments = attachedImages.map(file => ({
-      id: crypto.randomUUID(),
+      id: generateId(),
       type: 'image' as const,
       name: file.name,
       url: URL.createObjectURL(file),
@@ -78,7 +79,7 @@ export function ChatView() {
     }))
 
     const userMessage: Message = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: 'user',
       content: userContent,
       timestamp: Date.now(),
@@ -92,7 +93,7 @@ export function ChatView() {
     setIsLoading(true)
 
     const assistantMessage: Message = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: 'assistant',
       content: '',
       timestamp: Date.now()
