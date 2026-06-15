@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
 import { PersonaPanel } from './components/PersonaPanel'
+import { UserProfilePanel } from './components/UserProfilePanel'
 import type { Theme } from './types'
 
 export function App() {
@@ -14,10 +15,15 @@ export function App() {
   const { preferences } = usePreferences()
 
   useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+  }, [theme])
+
+  useEffect(() => {
+    if (!preferences) return
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     const effectiveTheme = preferences.theme === 'system' ? systemTheme : preferences.theme
     setTheme(effectiveTheme as Theme)
-  }, [preferences.theme, setTheme])
+  }, [preferences?.theme, setTheme])
 
   useEffect(() => {
     if (activeConversationId) {
@@ -32,10 +38,6 @@ export function App() {
       setCurrentConversation(null)
     }
   }, [activeConversationId, getConversation, setMessages, setCurrentConversation])
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-  }, [theme])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -58,6 +60,8 @@ export function App() {
         return <SettingsPanel />
       case 'persona':
         return <PersonaPanel />
+      case 'user-profile':
+        return <UserProfilePanel />
       default:
         return null
     }

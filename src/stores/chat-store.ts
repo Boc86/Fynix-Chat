@@ -74,15 +74,17 @@ interface UIState {
   theme: Theme;
   fontSize: FontSize;
   sidebarOpen: boolean;
-  activePanel: 'none' | 'settings' | 'persona' | 'history';
+  activePanel: 'none' | 'settings' | 'persona' | 'history' | 'user-profile';
   fontSizeValue: number;
+  activePersonaId: string;
 
   setTheme: (theme: Theme) => void;
   setFontSize: (size: FontSize) => void;
   setSidebarOpen: (open: boolean) => void;
-  setActivePanel: (panel: 'none' | 'settings' | 'persona' | 'history') => void;
+  setActivePanel: (panel: 'none' | 'settings' | 'persona' | 'history' | 'user-profile') => void;
   toggleSidebar: () => void;
   closeSidebar: () => void;
+  setActivePersonaId: (id: string) => void;
 }
 
 const fontSizeMap: Record<FontSize, number> = {
@@ -97,6 +99,7 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: false,
   activePanel: 'none',
   fontSizeValue: 16,
+  activePersonaId: 'default',
 
   setTheme: (theme) => set({ theme }),
 
@@ -111,7 +114,9 @@ export const useUIStore = create<UIState>((set) => ({
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
-  closeSidebar: () => set({ sidebarOpen: false, activePanel: 'none' })
+  closeSidebar: () => set({ sidebarOpen: false, activePanel: 'none' }),
+
+  setActivePersonaId: (activePersonaId) => set({ activePersonaId })
 }));
 
 interface ConfigState {

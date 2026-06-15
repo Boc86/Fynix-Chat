@@ -1,4 +1,5 @@
 import type { NIMChatCompletionRequest, NIMStreamChunk, Message, ContentBlock } from '@/types';
+import { selectMessagesForContext } from './context-truncation';
 
 export class NIMChatClient {
   private apiKey: string;
@@ -18,11 +19,19 @@ export class NIMChatClient {
     this.proxyUrl = proxyUrl || '';
   }
 
-  private convertMessages(messages: Message[], systemPrompt?: string): NIMChatCompletionRequest['messages'] {
+  private convertMessages(
+    messages: Message[],
+    systemPrompt: string,
+    userProfileText: string
+  ): NIMChatCompletionRequest['messages'] {
     const result: NIMChatCompletionRequest['messages'] = [];
 
-    if (systemPrompt) {
-      result.push({ role: 'system', content: systemPrompt });
+    const systemParts: string[] = [];
+    if (systemPrompt) systemParts.push(systemPrompt);
+    if (userProfileText) systemParts.push(`\n---\nUser profile:\n${userProfileText}`);
+
+    if (systemParts.length > 0) {
+      result.push({ role: 'system', content: systemParts.join('\n') });
     }
 
     for (const msg of messages) {
@@ -44,15 +53,9 @@ export class NIMChatClient {
           content = msg.content;
         }
 
-        result.push({
-          role: 'user',
-          content
-        });
+        result.push({ role: 'user', content });
       } else if (msg.role === 'assistant') {
-        result.push({
-          role: 'assistant',
-          content: msg.content
-        });
+        result.push({ role: 'assistant', content: msg.content });
       }
     }
 
@@ -63,6 +66,7 @@ export class NIMChatClient {
     messages: Message[],
     options: {
       systemPrompt?: string;
+      userProfileText?: string;
       temperature?: number;
       maxTokens?: number;
       stream?: boolean;
@@ -72,11 +76,18 @@ export class NIMChatClient {
       abortSignal?: AbortSignal;
     }
   ): Promise<string> {
-    const { systemPrompt, temperature, maxTokens, stream, onChunk, onComplete, onError, abortSignal } = options;
+    const { systemPrompt = '', userProfileText = '', temperature, maxTokens = 2048, stream, onChunk, onComplete, onError, abortSignal } = options;
+
+    const truncatedMessages = selectMessagesForContext(
+      messages,
+      systemPrompt,
+      userProfileText,
+      maxTokens
+    );
 
     const request: NIMChatCompletionRequest = {
       model: this.model,
-      messages: this.convertMessages(messages, systemPrompt),
+      messages: this.convertMessages(truncatedMessages, systemPrompt, userProfileText),
       temperature,
       max_tokens: maxTokens,
       stream: stream ?? false
@@ -148,12 +159,33 @@ export class NIMChatClient {
       }
     } catch (err) {
       if (err instanceof TypeError && (err.message.includes('NetworkError') || err.message.includes('Failed to fetch'))) {
-        const msg = `Cannot reach ${targetUrl}. If the API does not support CORS, ensure the app is served through the Docker server (port 3000).`;
+        const msg = `Cannot reach ${targetUrl}. Ensure the app is served through the Docker server (port 3000).`;
         onError?.(new Error(msg));
         throw err;
       }
       onError?.(err instanceof Error ? err : new Error(String(err)));
       throw err;
+    }
+  }
+
+  async summarizeHistory(
+    messages: Message[],
+    userProfileText: string
+  ): Promise<string> {
+    const summaryMessages = messages.slice(-20);
+    const summaryRequest = summaryMessages.length > 0 ? summaryMessages : messages;
+
+    try {
+      const response = await this.chat(summaryRequest, {
+        systemPrompt: 'Summarize the following conversation concisely, preserving key facts, decisions, preferences, and user context. Focus on information needed for future responses.',
+        userProfileText,
+        temperature: 0.3,
+        maxTokens: 512,
+        stream: false,
+      });
+      return response;
+    } catch {
+      return '';
     }
   }
 }

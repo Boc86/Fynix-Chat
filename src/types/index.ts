@@ -4,6 +4,7 @@ export interface Message {
   content: string;
   timestamp: number;
   attachments?: Attachment[];
+  tokenEstimate?: number;
 }
 
 export interface Attachment {
@@ -18,18 +19,28 @@ export interface Conversation {
   id: string;
   title: string;
   messages: Message[];
+  summary?: string;
   createdAt: number;
   updatedAt: number;
+  messageCount?: number;
 }
 
 export interface Persona {
   id: string;
   name: string;
   description: string;
-  avatar?: string;
   systemPrompt: string;
   temperature: number;
   maxTokens: number;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  background: string;
+  interests: string;
+  expertise: string;
+  location: string;
 }
 
 export interface UserPreferences {

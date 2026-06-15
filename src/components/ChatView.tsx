@@ -3,8 +3,9 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { useChatStore, useUIStore, useConfigStore } from '@/stores/chat-store'
-import { useConversations, usePreferences, usePersona, useApiConfigs } from '@/lib/hooks'
+import { useConversations, usePreferences, usePersonas, useApiConfigs, useUserProfile } from '@/lib/hooks'
 import { createNIMClient } from '@/lib/providers/nvidia-nim'
+import { buildUserProfileText } from '@/lib/providers/context-truncation'
 import { generateId } from '@/lib/storage'
 import type { Message, Attachment } from '@/types'
 
@@ -29,12 +30,15 @@ export function ChatView() {
     clearEditingMessage,
     setMessages
   } = useChatStore()
-  const { toggleSidebar } = useUIStore()
+  const { toggleSidebar, activePersonaId } = useUIStore()
   const { preferences } = usePreferences()
-  const { persona } = usePersona()
+  const { personas, getPersonaById } = usePersonas()
+  const { profile } = useUserProfile()
   const { apiConfig, setApiConfig } = useConfigStore()
   const { updateConversation } = useConversations()
   const { configs } = useApiConfigs()
+
+  const activePersona = getPersonaById(activePersonaId)
 
   useEffect(() => {
     if (!apiConfig && configs.length > 0) {
@@ -95,6 +99,12 @@ export function ChatView() {
       return
     }
 
+    const persona = activePersona || personas[0]
+    if (!persona) {
+      alert('No persona configured')
+      return
+    }
+
     const userContent = input.trim()
     const fileAttachments: Attachment[] = attachedFiles.map(file => ({
       id: generateId(),
@@ -147,14 +157,15 @@ export function ChatView() {
 
     const client = createNIMClient(apiConfig.apiKey, apiConfig.baseUrl, apiConfig.model)
 
-    const submitMessages = editingMessageId
-      ? updatedMessages.slice(0, -1)
-      : updatedMessages.slice(0, -1)
+    const submitMessages = updatedMessages.slice(0, -1)
+
+    const userProfileText = profile ? buildUserProfileText(profile) : ''
 
     try {
       if (preferences.streaming) {
         await client.chat(submitMessages, {
           systemPrompt: persona.systemPrompt,
+          userProfileText,
           temperature: persona.temperature,
           maxTokens: persona.maxTokens,
           stream: true,
@@ -189,6 +200,7 @@ export function ChatView() {
       } else {
         const response = await client.chat(submitMessages, {
           systemPrompt: persona.systemPrompt,
+          userProfileText,
           temperature: persona.temperature,
           maxTokens: persona.maxTokens,
           stream: false,
@@ -229,7 +241,7 @@ export function ChatView() {
 
       if (currentConversationId) {
         const finalMessages = useChatStore.getState().messages
-        await updateConversation(currentConversationId, { messages: JSON.stringify(finalMessages) })
+        await updateConversation(currentConversationId, { messages: finalMessages })
       }
     }
   }
@@ -253,10 +265,13 @@ export function ChatView() {
           </svg>
         </button>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h2 className="font-medium text-text-primary truncate">
             {messages.length === 0 ? 'New Chat' : messages[0]?.content.slice(0, 50) || 'Chat'}
           </h2>
+          {activePersona && (
+            <p className="text-xs text-text-muted truncate">{activePersona.name}</p>
+          )}
         </div>
 
         {isLoading && (

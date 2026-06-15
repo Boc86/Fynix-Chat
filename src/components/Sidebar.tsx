@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useUIStore } from '@/stores/chat-store'
-import { useConversations } from '@/lib/hooks'
+import { useConversations, usePersonas } from '@/lib/hooks'
 import type { Conversation } from '@/types'
 
 interface SidebarProps {
@@ -12,8 +12,9 @@ interface SidebarProps {
 }
 
 export function Sidebar({ open, onClose, conversations, activeConversationId, onSelectConversation }: SidebarProps) {
-  const { activePanel, setActivePanel } = useUIStore()
+  const { activePanel, setActivePanel, activePersonaId } = useUIStore()
   const { createConversation, deleteConversation } = useConversations()
+  const { personas } = usePersonas()
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredConversations = useMemo(() => {
@@ -21,9 +22,11 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, on
     const query = searchQuery.toLowerCase()
     return conversations.filter(c =>
       c.title.toLowerCase().includes(query) ||
-      c.messages.some(m => m.content.toLowerCase().includes(query))
+      c.messages?.some(m => m.content.toLowerCase().includes(query))
     )
   }, [conversations, searchQuery])
+
+  const activePersona = personas.find(p => p.id === activePersonaId)
 
   const handleNewChat = async () => {
     await createConversation()
@@ -138,15 +141,32 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, on
 
         <div className="p-3 border-t border-surface-tertiary space-y-1">
           <button
-            onClick={() => setActivePanel('persona')}
+            onClick={() => setActivePanel('user-profile')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              activePanel === 'persona' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
+              activePanel === 'user-profile' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
             }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-            Bot Persona
+            User Profile
+          </button>
+
+          <button
+            onClick={() => setActivePanel('persona')}
+            className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              activePanel === 'persona' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Bot Persona
+            </div>
+            {activePersona && (
+              <span className="text-xs text-accent-primary truncate max-w-24">{activePersona.name}</span>
+            )}
           </button>
 
           <button

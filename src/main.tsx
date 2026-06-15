@@ -2,7 +2,6 @@ import ReactDOM from 'react-dom/client'
 import { App } from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import './index.css'
-import { initializeDatabase } from '@/lib/storage'
 
 const root = document.getElementById('root')!
 
@@ -12,10 +11,10 @@ root.innerHTML = `<div style="display:flex;align-items:center;justify-content:ce
   <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </div>`
 
-initializeDatabase().catch(() => {}).finally(() => {
+setTimeout(() => {
   ReactDOM.createRoot(root).render(
     <ErrorBoundary>
       <App />
     </ErrorBoundary>,
   )
-})
+}, 100)
