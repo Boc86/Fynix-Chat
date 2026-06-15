@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, initializeDatabase, defaultPreferences, defaultPersona, type StoredPreferences, type StoredPersona, type StoredApiConfig, type StoredConversation } from '@/lib/storage';
-import type { Message, Conversation, Persona, UserPreferences, ApiConfig } from '@/types';
+import type { Message, Conversation } from '@/types';
 
 export function useConversations() {
   const conversations = useLiveQuery(() =>

@@ -106,5 +106,5 @@ export interface NIMStreamChunk {
   }[];
 }
 
-export type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark' | 'system';
 export type FontSize = 'small' | 'medium' | 'large';

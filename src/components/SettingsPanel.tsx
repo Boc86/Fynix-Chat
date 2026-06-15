@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useUIStore, useConfigStore } from '@/stores/chat-store'
 import { usePreferences, useApiConfigs } from '@/lib/hooks'
-import type { Theme, FontSize, ApiConfig } from '@/types'
+import type { ApiConfig } from '@/types'
 
 export function SettingsPanel() {
-  const { setActivePanel, theme, setTheme, fontSize, setFontSize } = useUIStore()
+  const { setActivePanel, setTheme, setFontSize } = useUIStore()
   const { preferences, updatePreferences } = usePreferences()
   const { configs, addApiConfig, updateApiConfig, deleteApiConfig, setDefaultConfig } = useApiConfigs()
   const { apiConfig, setApiConfig } = useConfigStore()

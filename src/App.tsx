@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react'
 import { useUIStore, useChatStore } from './stores/chat-store'
-import { useConversations, usePersona, usePreferences, useApiConfigs, initializeDatabase } from './lib/hooks'
+import { useConversations, usePreferences, initializeDatabase } from './lib/hooks'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -12,7 +12,6 @@ export function App() {
   const { setMessages, setCurrentConversation } = useChatStore()
   const { conversations, activeConversationId, setActiveConversation, getConversation } = useConversations()
   const { preferences } = usePreferences()
-  const { configs } = useApiConfigs()
 
   useEffect(() => {
     initializeDatabase()

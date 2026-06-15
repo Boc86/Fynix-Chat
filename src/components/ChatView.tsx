@@ -2,16 +2,14 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { useChatStore, useUIStore, useConfigStore } from '@/stores/chat-store'
-import { useConversations, usePersona } from '@/lib/hooks'
+import { useConversations, usePreferences, usePersona } from '@/lib/hooks'
 import { createNIMClient } from '@/lib/providers/nvidia-nim'
 import type { Message } from '@/types'
 
 export function ChatView() {
   const {
     messages,
-    setMessages,
     addMessage,
     updateLastMessage,
     isLoading,
@@ -22,8 +20,9 @@ export function ChatView() {
     setAbortController,
     currentConversationId
   } = useChatStore()
-  const { toggleSidebar, theme } = useUIStore()
-  const { preferences } = usePersona()
+  const { toggleSidebar } = useUIStore()
+  const { preferences } = usePreferences()
+  const { persona } = usePersona()
   const { apiConfig } = useConfigStore()
   const { updateConversation } = useConversations()
 
@@ -108,9 +107,9 @@ export function ChatView() {
     try {
       if (preferences.streaming) {
         await client.chat([...messages, userMessage], {
-          systemPrompt: preferences.systemPrompt,
-          temperature: preferences.temperature,
-          maxTokens: preferences.maxTokens,
+          systemPrompt: persona.systemPrompt,
+          temperature: persona.temperature,
+          maxTokens: persona.maxTokens,
           stream: true,
           abortSignal: abortController.signal,
           onChunk: (chunk) => {
@@ -124,9 +123,9 @@ export function ChatView() {
         })
       } else {
         const response = await client.chat([...messages, userMessage], {
-          systemPrompt: preferences.systemPrompt,
-          temperature: preferences.temperature,
-          maxTokens: preferences.maxTokens,
+          systemPrompt: persona.systemPrompt,
+          temperature: persona.temperature,
+          maxTokens: persona.maxTokens,
           stream: false,
           abortSignal: abortController.signal,
           onError: (err) => {
@@ -315,18 +314,17 @@ function MessageBubble({ message }: { message: Message }) {
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  code({ node, className, children, ...props }) {
+                  code({ className, children }) {
                     const match = /language-(\w+)/.exec(className || '')
                     const isInline = !match && !className
                     return isInline ? (
-                      <code className={className} {...props}>{children}</code>
+                      <code className={className}>{children}</code>
                     ) : (
                       <SyntaxHighlighter
-                        style={theme === 'dark' ? vscDarkPlus : undefined}
+                        customStyle={{ background: 'var(--color-surface-tertiary)', margin: '1em 0', borderRadius: '8px' }}
                         language={match ? match[1] : 'text'}
                         PreTag="div"
                         className="rounded-lg !bg-surface-tertiary/50 !my-2"
-                        {...props}
                       >
                         {String(children).replace(/\n$/, '')}
                       </SyntaxHighlighter>

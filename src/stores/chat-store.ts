@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import type { Message, Theme, FontSize, ApiConfig, Persona } from '@/types';
-import { db } from '@/lib/storage';
+import type { Message, Theme, FontSize, ApiConfig } from '@/types';
 
 interface ChatState {
   currentConversationId: string | null;
