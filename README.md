@@ -25,7 +25,7 @@ npm install
 npm run dev
 ```
 
-### Docker
+### Docker (Pre-built Image)
 
 ```bash
 docker-compose up -d
@@ -35,52 +35,56 @@ Access at http://localhost:3000
 
 **Note:** Designed for private networks (e.g., Tailscale). No authentication built-in - restrict access at the network level.
 
+### Docker (Build Locally)
+
+```bash
+# Build and run
+docker build -t fynix-chat .
+docker run -d -p 3000:3000 --name fynix-chat fynix-chat
+```
+
+### GitHub Container Registry
+
+The image is available at: `ghcr.io/boc86/fynix-chat:latest`
+
+To build and push yourself:
+
+```bash
+# Login to GHCR
+echo $CR_PAT | docker login ghcr.io -u Boc86 --password-stdin
+
+# Build the image
+docker build -t ghcr.io/boc86/fynix-chat:latest .
+
+# Push to GHCR
+docker push ghcr.io/boc86/fynix-chat:latest
+```
+
 ### Portainer / Container Manager Deployment
 
-**Option A: Docker Compose (Portainer Stacks)**
+**Option A: GHCR Image (Recommended)**
 
-1. Build locally first:
-   ```bash
-   docker build -t fynix-chat .
-   ```
-
-2. In Portainer:
+1. In Portainer:
    - Go to **Stacks** → **Add stack**
    - Name: `fynix-chat`
    - Build method: **Web editor**
-   - Paste the contents of `docker-compose.yml`
+   - Paste:
 
-3. Deploy the stack
+```yaml
+version: '3.8'
+services:
+  fynix-chat:
+    image: ghcr.io/boc86/fynix-chat:latest
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+```
 
-**Option B: Image from GitHub Container Registry**
+**Option B: Build in Portainer**
 
-1. Push built image to a registry (Docker Hub, GHCR, etc.) or build in Portainer
-
-2. Use this compose in Portainer:
-   ```yaml
-   version: '3.8'
-   services:
-     fynix-chat:
-       image: <your-image>
-       ports:
-         - "3000:3000"
-       restart: unless-stopped
-   ```
-
-**Option C: Portainer Build**
-
-1. In Portainer, create a **Custom template** or use **Web editor** with:
-   ```yaml
-   version: '3.8'
-   services:
-     fynix-chat:
-       build: .
-       ports:
-         - "3000:3000"
-       restart: unless-stopped
-   ```
-
-2. Point to your cloned GitHub repo or upload the project files
+1. Clone the repo or upload project files to Portainer
+2. Create stack with the `docker-compose.yml` from this repo
+3. Set build context to the project root
 
 **Post-Deploy:**
 

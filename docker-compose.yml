@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  nim-chat:
-    build: .
+  fynix-chat:
+    image: ghcr.io/boc86/fynix-chat:latest
     ports:
       - "3000:3000"
     restart: unless-stopped
