@@ -4,8 +4,9 @@ export class NIMChatClient {
   private apiKey: string;
   private baseUrl: string;
   private model: string;
+  private proxyUrl: string;
 
-  constructor(apiKey: string, baseUrl: string, model: string) {
+  constructor(apiKey: string, baseUrl: string, model: string, proxyUrl?: string) {
     this.apiKey = apiKey;
     let url = baseUrl.trim().replace(/\/$/, '');
     url = url.replace(/\/chat\/completions$/, '');
@@ -14,6 +15,7 @@ export class NIMChatClient {
     }
     this.baseUrl = url;
     this.model = model;
+    this.proxyUrl = proxyUrl || '';
   }
 
   private convertMessages(messages: Message[], systemPrompt?: string): NIMChatCompletionRequest['messages'] {
@@ -70,20 +72,29 @@ export class NIMChatClient {
       stream: stream ?? false
     };
 
+    const targetUrl = `${this.baseUrl}/chat/completions`;
+    const url = this.proxyUrl || targetUrl;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this.apiKey}`
+    };
+
+    if (this.proxyUrl) {
+      headers['X-Target-Url'] = targetUrl;
+    }
+
     try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
+        headers,
         body: JSON.stringify(request),
         signal: abortSignal
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`API error ${response.status} for ${this.baseUrl}/chat/completions: ${errorText}`);
+        throw new Error(`API error ${response.status} for ${targetUrl}: ${errorText}`);
       }
 
       if (stream && onChunk) {
@@ -126,16 +137,17 @@ export class NIMChatClient {
         return content;
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const detail = msg.includes('NetworkError') || msg.includes('Failed to fetch')
-        ? `Cannot reach ${this.baseUrl}/chat/completions. Check the URL in Settings.`
-        : msg;
-      onError?.(new Error(detail));
+      if (err instanceof TypeError && (err.message.includes('NetworkError') || err.message.includes('Failed to fetch'))) {
+        const msg = `Cannot reach ${targetUrl}. If the API does not support CORS, ensure the app is served through the Docker server (port 3000).`;
+        onError?.(new Error(msg));
+        throw err;
+      }
+      onError?.(err instanceof Error ? err : new Error(String(err)));
       throw err;
     }
   }
 }
 
 export function createNIMClient(apiKey: string, baseUrl: string, model: string): NIMChatClient {
-  return new NIMChatClient(apiKey, baseUrl, model);
+  return new NIMChatClient(apiKey, baseUrl, model, '/api/proxy');
 }
