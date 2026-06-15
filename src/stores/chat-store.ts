@@ -1,0 +1,120 @@
+import { create } from 'zustand';
+import type { Message, Theme, FontSize, ApiConfig, Persona } from '@/types';
+import { db } from '@/lib/storage';
+
+interface ChatState {
+  currentConversationId: string | null;
+  messages: Message[];
+  isLoading: boolean;
+  streamingContent: string;
+  abortController: AbortController | null;
+
+  setCurrentConversation: (id: string | null) => void;
+  setMessages: (messages: Message[]) => void;
+  addMessage: (message: Message) => void;
+  updateLastMessage: (content: string) => void;
+  setIsLoading: (loading: boolean) => void;
+  setStreamingContent: (content: string) => void;
+  clearStreamingContent: () => void;
+  setAbortController: (controller: AbortController | null) => void;
+  abortStream: () => void;
+}
+
+export const useChatStore = create<ChatState>((set, get) => ({
+  currentConversationId: null,
+  messages: [],
+  isLoading: false,
+  streamingContent: '',
+  abortController: null,
+
+  setCurrentConversation: (id) => set({ currentConversationId: id }),
+
+  setMessages: (messages) => set({ messages }),
+
+  addMessage: (message) => set((state) => ({
+    messages: [...state.messages, message]
+  })),
+
+  updateLastMessage: (content) => set((state) => {
+    const messages = [...state.messages];
+    const lastIndex = messages.length - 1;
+    if (lastIndex >= 0 && messages[lastIndex]?.role === 'assistant') {
+      messages[lastIndex] = { ...messages[lastIndex], content };
+    }
+    return { messages };
+  }),
+
+  setIsLoading: (loading) => set({ isLoading: loading }),
+
+  setStreamingContent: (content) => set((state) => ({
+    streamingContent: state.streamingContent + content
+  })),
+
+  clearStreamingContent: () => set({ streamingContent: '' }),
+
+  setAbortController: (controller) => set({ abortController: controller }),
+
+  abortStream: () => {
+    const { abortController } = get();
+    if (abortController) {
+      abortController.abort();
+      set({ abortController: null, isLoading: false });
+    }
+  }
+}));
+
+interface UIState {
+  theme: Theme;
+  fontSize: FontSize;
+  sidebarOpen: boolean;
+  activePanel: 'none' | 'settings' | 'persona' | 'history';
+  fontSizeValue: number;
+
+  setTheme: (theme: Theme) => void;
+  setFontSize: (size: FontSize) => void;
+  setSidebarOpen: (open: boolean) => void;
+  setActivePanel: (panel: 'none' | 'settings' | 'persona' | 'history') => void;
+  toggleSidebar: () => void;
+  closeSidebar: () => void;
+}
+
+const fontSizeMap: Record<FontSize, number> = {
+  small: 14,
+  medium: 16,
+  large: 18
+};
+
+export const useUIStore = create<UIState>((set) => ({
+  theme: 'dark',
+  fontSize: 'medium',
+  sidebarOpen: false,
+  activePanel: 'none',
+  fontSizeValue: 16,
+
+  setTheme: (theme) => set({ theme }),
+
+  setFontSize: (fontSize) => set({
+    fontSize,
+    fontSizeValue: fontSizeMap[fontSize]
+  }),
+
+  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
+
+  setActivePanel: (activePanel) => set({ activePanel }),
+
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+  closeSidebar: () => set({ sidebarOpen: false, activePanel: 'none' })
+}));
+
+interface ConfigState {
+  apiConfig: ApiConfig | null;
+
+  setApiConfig: (config: ApiConfig | null) => void;
+}
+
+export const useConfigStore = create<ConfigState>((set) => ({
+  apiConfig: null,
+
+  setApiConfig: (apiConfig) => set({ apiConfig })
+}));
