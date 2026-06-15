@@ -7,7 +7,11 @@ export class NIMChatClient {
 
   constructor(apiKey: string, baseUrl: string, model: string) {
     this.apiKey = apiKey;
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+    let url = baseUrl.trim().replace(/\/$/, '');
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+    this.baseUrl = url;
     this.model = model;
   }
 
@@ -78,7 +82,7 @@ export class NIMChatClient {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`API error ${response.status}: ${errorText}`);
+        throw new Error(`API error ${response.status} for ${this.baseUrl}/chat/completions: ${errorText}`);
       }
 
       if (stream && onChunk) {
@@ -121,7 +125,11 @@ export class NIMChatClient {
         return content;
       }
     } catch (err) {
-      onError?.(err instanceof Error ? err : new Error(String(err)));
+      const msg = err instanceof Error ? err.message : String(err);
+      const detail = msg.includes('NetworkError') || msg.includes('Failed to fetch')
+        ? `Cannot reach ${this.baseUrl}/chat/completions. Check the URL in Settings.`
+        : msg;
+      onError?.(new Error(detail));
       throw err;
     }
   }
