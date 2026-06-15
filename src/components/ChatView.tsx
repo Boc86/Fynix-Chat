@@ -6,20 +6,28 @@ import { useChatStore, useUIStore, useConfigStore } from '@/stores/chat-store'
 import { useConversations, usePreferences, usePersona, useApiConfigs } from '@/lib/hooks'
 import { createNIMClient } from '@/lib/providers/nvidia-nim'
 import { generateId } from '@/lib/storage'
-import type { Message } from '@/types'
+import type { Message, Attachment } from '@/types'
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 export function ChatView() {
   const {
     messages,
-    addMessage,
-    updateLastMessage,
     isLoading,
     setIsLoading,
     streamingContent,
     setStreamingContent,
     clearStreamingContent,
     setAbortController,
-    currentConversationId
+    currentConversationId,
+    editingMessageId,
+    setEditingMessage,
+    clearEditingMessage,
+    setMessages
   } = useChatStore()
   const { toggleSidebar } = useUIStore()
   const { preferences } = usePreferences()
@@ -36,7 +44,7 @@ export function ChatView() {
   }, [apiConfig, configs, setApiConfig])
 
   const [input, setInput] = useState('')
-  const [attachedImages, setAttachedImages] = useState<File[]>([])
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -56,21 +64,31 @@ export function ChatView() {
     }
   }, [input])
 
-  const handleImageAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    const imageFiles = files.filter(f => f.type.startsWith('image/'))
-    setAttachedImages(prev => [...prev, ...imageFiles].slice(5))
+    setAttachedFiles(prev => [...prev, ...files].slice(10))
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const removeImage = (index: number) => {
-    setAttachedImages(prev => prev.filter((_, i) => i !== index))
+  const removeAttachedFile = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleEditMessage = (msg: Message) => {
+    setInput(msg.content)
+    setEditingMessage(msg.id)
+    textareaRef.current?.focus()
+  }
+
+  const cancelEdit = () => {
+    setInput('')
+    clearEditingMessage()
   }
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
 
-    if (!input.trim() && attachedImages.length === 0) return
+    if (!input.trim() && attachedFiles.length === 0) return
     if (isLoading) return
     if (!apiConfig) {
       alert('Please configure your API settings first')
@@ -78,25 +96,39 @@ export function ChatView() {
     }
 
     const userContent = input.trim()
-    const imageAttachments = attachedImages.map(file => ({
+    const fileAttachments: Attachment[] = attachedFiles.map(file => ({
       id: generateId(),
-      type: 'image' as const,
+      type: file.type.startsWith('image/') ? 'image' : 'file',
       name: file.name,
       url: URL.createObjectURL(file),
       size: file.size
     }))
 
     const userMessage: Message = {
-      id: generateId(),
+      id: editingMessageId ?? generateId(),
       role: 'user',
       content: userContent,
       timestamp: Date.now(),
-      attachments: imageAttachments.length > 0 ? imageAttachments : undefined
+      attachments: fileAttachments.length > 0 ? fileAttachments : undefined
     }
 
-    addMessage(userMessage)
+    let updatedMessages: Message[]
+
+    if (editingMessageId) {
+      const editIndex = messages.findIndex(m => m.id === editingMessageId)
+      if (editIndex !== -1) {
+        updatedMessages = [...messages.slice(0, editIndex), userMessage]
+      } else {
+        updatedMessages = [...messages, userMessage]
+      }
+      clearEditingMessage()
+    } else {
+      updatedMessages = [...messages, userMessage]
+    }
+
+    setMessages(updatedMessages)
     setInput('')
-    setAttachedImages([])
+    setAttachedFiles([])
     clearStreamingContent()
     setIsLoading(true)
 
@@ -106,16 +138,22 @@ export function ChatView() {
       content: '',
       timestamp: Date.now()
     }
-    addMessage(assistantMessage)
+
+    updatedMessages = [...updatedMessages, assistantMessage]
+    setMessages(updatedMessages)
 
     const abortController = new AbortController()
     setAbortController(abortController)
 
     const client = createNIMClient(apiConfig.apiKey, apiConfig.baseUrl, apiConfig.model)
 
+    const submitMessages = editingMessageId
+      ? updatedMessages.slice(0, -1)
+      : updatedMessages.slice(0, -1)
+
     try {
       if (preferences.streaming) {
-        await client.chat([...messages, userMessage], {
+        await client.chat(submitMessages, {
           systemPrompt: persona.systemPrompt,
           temperature: persona.temperature,
           maxTokens: persona.maxTokens,
@@ -123,15 +161,33 @@ export function ChatView() {
           abortSignal: abortController.signal,
           onChunk: (chunk) => {
             setStreamingContent(chunk)
-            updateLastMessage(streamingContent + chunk)
+            const msgs = useChatStore.getState().messages
+            const lastIndex = msgs.length - 1
+            if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
+              const updated = [...msgs]
+              const msg = updated[lastIndex]
+              if (msg) {
+                updated[lastIndex] = { ...msg, content: msg.content + chunk }
+                useChatStore.getState().setMessages(updated)
+              }
+            }
           },
           onError: (err) => {
             console.error('Chat error:', err)
-            updateLastMessage(`Error: ${err.message}`)
+            const msgs = useChatStore.getState().messages
+            const lastIndex = msgs.length - 1
+            if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
+              const updated = [...msgs]
+              const msg = updated[lastIndex]
+              if (msg) {
+                updated[lastIndex] = { ...msg, content: `Error: ${err.message}` }
+                useChatStore.getState().setMessages(updated)
+              }
+            }
           }
         })
       } else {
-        const response = await client.chat([...messages, userMessage], {
+        const response = await client.chat(submitMessages, {
           systemPrompt: persona.systemPrompt,
           temperature: persona.temperature,
           maxTokens: persona.maxTokens,
@@ -139,23 +195,41 @@ export function ChatView() {
           abortSignal: abortController.signal,
           onError: (err) => {
             console.error('Chat error:', err)
-            updateLastMessage(`Error: ${err.message}`)
+            const msgs = useChatStore.getState().messages
+            const lastIndex = msgs.length - 1
+            if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
+              const updated = [...msgs]
+              const msg = updated[lastIndex]
+              if (msg) {
+                updated[lastIndex] = { ...msg, content: `Error: ${err.message}` }
+                useChatStore.getState().setMessages(updated)
+              }
+            }
           }
         })
-        updateLastMessage(response)
+        const msgs = useChatStore.getState().messages
+        const lastIndex = msgs.length - 1
+        if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
+          const updated = [...msgs]
+          const msg = updated[lastIndex]
+          if (msg) {
+            updated[lastIndex] = { ...msg, content: response }
+            useChatStore.getState().setMessages(updated)
+          }
+        }
       }
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
         console.error('Chat error:', err)
-        updateLastMessage(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
       }
     } finally {
       setIsLoading(false)
       setAbortController(null)
+      clearStreamingContent()
 
       if (currentConversationId) {
-        const updatedMessages = [...messages, userMessage, { ...assistantMessage, content: streamingContent || messages[messages.length - 1]?.content }]
-        await updateConversation(currentConversationId, { messages: JSON.stringify(updatedMessages) })
+        const finalMessages = useChatStore.getState().messages
+        await updateConversation(currentConversationId, { messages: JSON.stringify(finalMessages) })
       }
     }
   }
@@ -207,7 +281,11 @@ export function ChatView() {
         )}
 
         {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble
+            key={message.id}
+            message={message}
+            onEdit={message.role === 'user' ? handleEditMessage : undefined}
+          />
         ))}
 
         {isLoading && streamingContent === '' && messages[messages.length - 1]?.role === 'assistant' && (
@@ -229,17 +307,29 @@ export function ChatView() {
       </div>
 
       <div className="p-4 border-t border-surface-tertiary">
-        {attachedImages.length > 0 && (
+        {attachedFiles.length > 0 && (
           <div className="flex gap-2 mb-3 flex-wrap">
-            {attachedImages.map((file, index) => (
+            {attachedFiles.map((file, index) => (
               <div key={index} className="relative group">
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt={file.name}
-                  className="w-20 h-20 object-cover rounded-lg"
-                />
+                {file.type.startsWith('image/') ? (
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="w-20 h-20 object-cover rounded-lg"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-surface-secondary rounded-lg border border-surface-tertiary max-w-48">
+                    <svg className="w-5 h-5 shrink-0 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <div className="min-w-0">
+                      <div className="text-sm text-text-primary truncate">{file.name}</div>
+                      <div className="text-xs text-text-muted">{formatFileSize(file.size)}</div>
+                    </div>
+                  </div>
+                )}
                 <button
-                  onClick={() => removeImage(index)}
+                  onClick={() => removeAttachedFile(index)}
                   className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   x
@@ -249,12 +339,12 @@ export function ChatView() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex gap-3">
+        <form onSubmit={handleSubmit} className="flex gap-3 items-end">
           <input
             type="file"
             ref={fileInputRef}
-            onChange={handleImageAttach}
-            accept="image/*"
+            onChange={handleFileAttach}
+            accept="*/*"
             multiple
             className="hidden"
           />
@@ -263,12 +353,22 @@ export function ChatView() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="p-2.5 rounded-lg bg-surface-secondary hover:bg-surface-hover text-text-secondary transition-colors"
-            title="Attach image"
+            title="Attach file"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
           </button>
+
+          {editingMessageId && (
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="px-3 py-3 rounded-lg bg-surface-secondary hover:bg-surface-hover text-text-secondary text-sm transition-colors"
+            >
+              Cancel
+            </button>
+          )}
 
           <div className="flex-1 relative">
             <textarea
@@ -276,7 +376,7 @@ export function ChatView() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type your message..."
+              placeholder={editingMessageId ? 'Edit your message...' : 'Type your message...'}
               className="w-full px-4 py-3 bg-surface-secondary border-none rounded-xl text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary"
               rows={1}
               style={{ fontSize: `${useUIStore.getState().fontSizeValue}px` }}
@@ -285,7 +385,7 @@ export function ChatView() {
 
           <button
             type="submit"
-            disabled={(!input.trim() && attachedImages.length === 0) || isLoading}
+            disabled={(!input.trim() && attachedFiles.length === 0) || isLoading}
             className="px-5 py-3 bg-accent-primary hover:bg-accent-secondary disabled:bg-surface-tertiary disabled:text-text-muted text-white rounded-xl font-medium transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -298,11 +398,31 @@ export function ChatView() {
   )
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function FileAttachmentCard({ attachment }: { attachment: Attachment }) {
+  return (
+    <a
+      href={attachment.url}
+      download={attachment.name}
+      className="flex items-center gap-2 px-3 py-2 bg-surface-primary/10 rounded-lg border border-surface-tertiary/30 hover:bg-surface-primary/20 transition-colors no-underline text-inherit max-w-64"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg>
+      <div className="min-w-0">
+        <div className="text-sm truncate">{attachment.name}</div>
+        <div className="text-xs opacity-70">{formatFileSize(attachment.size)}</div>
+      </div>
+    </a>
+  )
+}
+
+function MessageBubble({ message, onEdit }: { message: Message; onEdit?: (msg: Message) => void }) {
   const isUser = message.role === 'user'
 
   return (
-    <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex gap-3 group ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium ${
         isUser ? 'bg-accent-primary text-white' : 'bg-surface-tertiary text-text-primary'
       }`}>
@@ -310,11 +430,28 @@ function MessageBubble({ message }: { message: Message }) {
       </div>
 
       <div className={`flex-1 max-w-2xl ${isUser ? 'text-right' : ''}`}>
-        <div className={`inline-block text-left px-4 py-3 rounded-2xl ${
+        <div className={`inline-block text-left px-4 py-3 rounded-2xl relative ${
           isUser ? 'bg-accent-primary text-white' : 'bg-surface-secondary text-text-primary'
         }`}>
+          {isUser && onEdit && (
+            <button
+              onClick={() => onEdit(message)}
+              className="absolute -top-2 -right-2 w-6 h-6 bg-surface-secondary border border-surface-tertiary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-surface-hover"
+              title="Edit message"
+            >
+              <svg className="w-3.5 h-3.5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          )}
           {message.attachments?.map(att => (
-            <img key={att.id} src={att.url} alt={att.name} className="max-w-xs rounded-lg mb-2" />
+            att.type === 'image' ? (
+              <img key={att.id} src={att.url} alt={att.name} className="max-w-xs rounded-lg mb-2" />
+            ) : (
+              <div key={att.id} className="mb-2">
+                <FileAttachmentCard attachment={att} />
+              </div>
+            )
           ))}
           {isUser ? (
             <p className="whitespace-pre-wrap">{message.content}</p>

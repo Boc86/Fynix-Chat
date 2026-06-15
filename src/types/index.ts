@@ -8,7 +8,7 @@ export interface Message {
 
 export interface Attachment {
   id: string;
-  type: 'image';
+  type: 'image' | 'file';
   name: string;
   url: string;
   size: number;

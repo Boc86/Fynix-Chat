@@ -13,7 +13,7 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose, conversations, activeConversationId, onSelectConversation }: SidebarProps) {
   const { activePanel, setActivePanel } = useUIStore()
-  const { createConversation } = useConversations()
+  const { createConversation, deleteConversation } = useConversations()
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredConversations = useMemo(() => {
@@ -97,18 +97,35 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, on
         <div className="flex-1 overflow-y-auto px-3 pb-3">
           <div className="space-y-1">
             {filteredConversations.map((conv) => (
-              <button
+              <div
                 key={conv.id}
-                onClick={() => onSelectConversation(conv.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
+                className={`group flex items-center gap-1 px-3 py-2.5 rounded-lg transition-colors ${
                   conv.id === activeConversationId
                     ? 'bg-surface-hover text-text-primary'
                     : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
                 }`}
               >
-                <div className="truncate font-medium text-sm">{conv.title}</div>
-                <div className="text-xs text-text-muted mt-0.5">{formatDate(conv.updatedAt)}</div>
-              </button>
+                <button
+                  onClick={() => onSelectConversation(conv.id)}
+                  className="flex-1 text-left min-w-0"
+                >
+                  <div className="truncate font-medium text-sm">{conv.title}</div>
+                  <div className="text-xs text-text-muted mt-0.5">{formatDate(conv.updatedAt)}</div>
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm('Delete this conversation?')) {
+                      deleteConversation(conv.id)
+                    }
+                  }}
+                  className="p-1.5 rounded-md text-text-muted hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                  title="Delete conversation"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
             ))}
 
             {filteredConversations.length === 0 && (

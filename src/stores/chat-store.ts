@@ -7,6 +7,7 @@ interface ChatState {
   isLoading: boolean;
   streamingContent: string;
   abortController: AbortController | null;
+  editingMessageId: string | null;
 
   setCurrentConversation: (id: string | null) => void;
   setMessages: (messages: Message[]) => void;
@@ -17,6 +18,8 @@ interface ChatState {
   clearStreamingContent: () => void;
   setAbortController: (controller: AbortController | null) => void;
   abortStream: () => void;
+  setEditingMessage: (id: string | null) => void;
+  clearEditingMessage: () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -25,6 +28,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoading: false,
   streamingContent: '',
   abortController: null,
+  editingMessageId: null,
 
   setCurrentConversation: (id) => set({ currentConversationId: id }),
 
@@ -59,7 +63,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       abortController.abort();
       set({ abortController: null, isLoading: false });
     }
-  }
+  },
+
+  setEditingMessage: (id) => set({ editingMessageId: id }),
+
+  clearEditingMessage: () => set({ editingMessageId: null })
 }));
 
 interface UIState {

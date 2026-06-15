@@ -27,12 +27,22 @@ export class NIMChatClient {
 
     for (const msg of messages) {
       if (msg.role === 'user') {
-        const content: string | ContentBlock[] = msg.attachments?.length
-          ? msg.attachments.map(att => ({
-              type: 'image_url' as const,
-              image_url: { url: att.url }
-            }))
-          : msg.content;
+        const imageAttachments = msg.attachments?.filter(att => att.type === 'image') || [];
+
+        let content: string | ContentBlock[];
+        if (imageAttachments.length > 0) {
+          const blocks: ContentBlock[] = [];
+          if (msg.content) {
+            blocks.push({ type: 'text', text: msg.content });
+          }
+          blocks.push(...imageAttachments.map(att => ({
+            type: 'image_url' as const,
+            image_url: { url: att.url }
+          })));
+          content = blocks;
+        } else {
+          content = msg.content;
+        }
 
         result.push({
           role: 'user',
