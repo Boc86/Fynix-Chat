@@ -12,63 +12,17 @@ A modern, responsive Progressive Web App for AI chat powered by NVIDIA NIM infer
 - **Responsive UI** - Seamless experience across all screen sizes
 - **Theme Support** - Light, dark, and system-following modes
 
-## Quick Start
+## Deploy
 
-### Prerequisites
-- Node.js 18+
-- NVIDIA NIM API access and API key
+Pre-built image: `ghcr.io/boc86/fynix-chat:latest`
 
-### Development
+### Docker
 
 ```bash
-npm install
-npm run dev
+docker run -d -p 3000:3000 --name fynix-chat ghcr.io/boc86/fynix-chat:latest
 ```
 
-### Docker (Pre-built Image)
-
-```bash
-docker-compose up -d
-```
-
-Access at http://localhost:3000
-
-**Note:** Designed for private networks (e.g., Tailscale). No authentication built-in - restrict access at the network level.
-
-### Docker (Build Locally)
-
-```bash
-# Build and run
-docker build -t fynix-chat .
-docker run -d -p 3000:3000 --name fynix-chat fynix-chat
-```
-
-### GitHub Container Registry
-
-The image is available at: `ghcr.io/boc86/fynix-chat:latest`
-
-To build and push yourself:
-
-```bash
-# Login to GHCR
-echo $CR_PAT | docker login ghcr.io -u Boc86 --password-stdin
-
-# Build the image
-docker build -t ghcr.io/boc86/fynix-chat:latest .
-
-# Push to GHCR
-docker push ghcr.io/boc86/fynix-chat:latest
-```
-
-### Portainer / Container Manager Deployment
-
-**Option A: GHCR Image (Recommended)**
-
-1. In Portainer:
-   - Go to **Stacks** → **Add stack**
-   - Name: `fynix-chat`
-   - Build method: **Web editor**
-   - Paste:
+Or with docker-compose:
 
 ```yaml
 version: '3.8'
@@ -80,15 +34,21 @@ services:
     restart: unless-stopped
 ```
 
-**Option B: Build in Portainer**
+Access at http://localhost:3000
 
-1. Clone the repo or upload project files to Portainer
-2. Create stack with the `docker-compose.yml` from this repo
-3. Set build context to the project root
+**Note:** Designed for private networks (e.g., Tailscale). No authentication built-in - restrict access at the network level.
 
-**Post-Deploy:**
+### Portainer
 
-Access at `http://<your-server>:3000` and configure your NIM API credentials in the Settings panel.
+1. Go to **Stacks** → **Add stack**
+2. Name: `fynix-chat`
+3. Build method: **Web editor**
+4. Paste the compose config above
+5. Deploy
+
+### Post-Deploy
+
+Open the app and configure your NIM API credentials in the **Settings** panel (gear icon).
 
 ## Configuration
 
