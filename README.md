@@ -35,6 +35,57 @@ Access at http://localhost:3000
 
 **Note:** Designed for private networks (e.g., Tailscale). No authentication built-in - restrict access at the network level.
 
+### Portainer / Container Manager Deployment
+
+**Option A: Docker Compose (Portainer Stacks)**
+
+1. Build locally first:
+   ```bash
+   docker build -t fynix-chat .
+   ```
+
+2. In Portainer:
+   - Go to **Stacks** → **Add stack**
+   - Name: `fynix-chat`
+   - Build method: **Web editor**
+   - Paste the contents of `docker-compose.yml`
+
+3. Deploy the stack
+
+**Option B: Image from GitHub Container Registry**
+
+1. Push built image to a registry (Docker Hub, GHCR, etc.) or build in Portainer
+
+2. Use this compose in Portainer:
+   ```yaml
+   version: '3.8'
+   services:
+     fynix-chat:
+       image: <your-image>
+       ports:
+         - "3000:3000"
+       restart: unless-stopped
+   ```
+
+**Option C: Portainer Build**
+
+1. In Portainer, create a **Custom template** or use **Web editor** with:
+   ```yaml
+   version: '3.8'
+   services:
+     fynix-chat:
+       build: .
+       ports:
+         - "3000:3000"
+       restart: unless-stopped
+   ```
+
+2. Point to your cloned GitHub repo or upload the project files
+
+**Post-Deploy:**
+
+Access at `http://<your-server>:3000` and configure your NIM API credentials in the Settings panel.
+
 ## Configuration
 
 1. Open Settings (gear icon)
