@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { useChatStore, useUIStore, useConfigStore } from '@/stores/chat-store'
-import { useConversations, usePreferences, usePersona } from '@/lib/hooks'
+import { useConversations, usePreferences, usePersona, useApiConfigs } from '@/lib/hooks'
 import { createNIMClient } from '@/lib/providers/nvidia-nim'
 import { generateId } from '@/lib/storage'
 import type { Message } from '@/types'
@@ -24,8 +24,16 @@ export function ChatView() {
   const { toggleSidebar } = useUIStore()
   const { preferences } = usePreferences()
   const { persona } = usePersona()
-  const { apiConfig } = useConfigStore()
+  const { apiConfig, setApiConfig } = useConfigStore()
   const { updateConversation } = useConversations()
+  const { configs } = useApiConfigs()
+
+  useEffect(() => {
+    if (!apiConfig && configs.length > 0) {
+      const cfg = configs.find(c => c.isDefault) || configs[0]
+      if (cfg) setApiConfig(cfg)
+    }
+  }, [apiConfig, configs, setApiConfig])
 
   const [input, setInput] = useState('')
   const [attachedImages, setAttachedImages] = useState<File[]>([])

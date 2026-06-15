@@ -8,6 +8,7 @@ export class NIMChatClient {
   constructor(apiKey: string, baseUrl: string, model: string) {
     this.apiKey = apiKey;
     let url = baseUrl.trim().replace(/\/$/, '');
+    url = url.replace(/\/chat\/completions$/, '');
     if (!/^https?:\/\//i.test(url)) {
       url = 'https://' + url;
     }

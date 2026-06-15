@@ -205,7 +205,7 @@ export function SettingsPanel() {
               />
               <input
                 type="text"
-                placeholder="Base URL (e.g., https://ai.api.nvidia.com/v1)"
+                placeholder="Base URL (e.g., https://integrate.api.nvidia.com/v1 — do NOT include /chat/completions)"
                 value={configForm.baseUrl}
                 onChange={e => setConfigForm(f => ({ ...f, baseUrl: e.target.value }))}
                 className="w-full px-3 py-2 bg-surface-tertiary border-none rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary"
