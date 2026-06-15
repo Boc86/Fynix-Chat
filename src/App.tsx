@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react'
 import { useUIStore, useChatStore } from './stores/chat-store'
-import { useConversations, usePreferences, initializeDatabase } from './lib/hooks'
+import { useConversations, usePreferences } from './lib/hooks'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -12,10 +12,6 @@ export function App() {
   const { setMessages, setCurrentConversation } = useChatStore()
   const { conversations, activeConversationId, setActiveConversation, getConversation } = useConversations()
   const { preferences } = usePreferences()
-
-  useEffect(() => {
-    initializeDatabase()
-  }, [])
 
   useEffect(() => {
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'

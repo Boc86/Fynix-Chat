@@ -57,7 +57,7 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, on
       `}>
         <div className="p-4 border-b border-surface-tertiary">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-lg font-semibold text-text-primary">NIM Chat</h1>
+            <h1 className="text-lg font-semibold text-text-primary">Fynix Chat</h1>
             <button
               onClick={onClose}
               className="p-2 rounded-lg hover:bg-surface-hover text-text-secondary md:hidden"

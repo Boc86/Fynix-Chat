@@ -20,23 +20,27 @@ export function SettingsPanel() {
   })
 
   const handleSaveConfig = async () => {
-    if (editingConfig) {
-      await updateApiConfig(editingConfig.id, configForm)
-      if (apiConfig?.id === editingConfig.id) {
-        setApiConfig({ ...editingConfig, ...configForm })
+    try {
+      if (editingConfig) {
+        await updateApiConfig(editingConfig.id, configForm)
+        if (apiConfig?.id === editingConfig.id) {
+          setApiConfig({ ...editingConfig, ...configForm })
+        }
+      } else {
+        const id = await addApiConfig(configForm)
+        if (configForm.isDefault) {
+          await setDefaultConfig(id)
+        }
+        if (configs.length === 0) {
+          setApiConfig({ ...configForm, id })
+        }
       }
-    } else {
-      const id = await addApiConfig(configForm)
-      if (configForm.isDefault) {
-        await setDefaultConfig(id)
-      }
-      if (configs.length === 0) {
-        setApiConfig({ ...configForm, id })
-      }
+      setShowAddConfig(false)
+      setEditingConfig(null)
+      setConfigForm({ name: '', apiKey: '', baseUrl: '', model: '', isDefault: false })
+    } catch (err) {
+      alert(`Failed to save config: ${err instanceof Error ? err.message : 'Unknown error'}`)
     }
-    setShowAddConfig(false)
-    setEditingConfig(null)
-    setConfigForm({ name: '', apiKey: '', baseUrl: '', model: '', isDefault: false })
   }
 
   const handleEditConfig = (config: ApiConfig) => {

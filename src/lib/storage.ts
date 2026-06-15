@@ -41,6 +41,10 @@ export interface StoredActiveConversation {
   conversationId: string | null;
 }
 
+export function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
+}
+
 class ChatDatabase extends Dexie {
   conversations!: Table<StoredConversation>;
   personas!: Table<StoredPersona>;
@@ -49,7 +53,7 @@ class ChatDatabase extends Dexie {
   activeConversation!: Table<StoredActiveConversation>;
 
   constructor() {
-    super('nim-chat');
+    super('fynix-chat');
     this.version(1).stores({
       conversations: 'id, title, createdAt, updatedAt',
       personas: 'id',

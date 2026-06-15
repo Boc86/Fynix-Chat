@@ -8,12 +8,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.png', 'logo.png', 'apple-touch-icon.png'],
       manifest: {
-        name: 'NIM Chat',
-        short_name: 'NIM Chat',
-        description: 'AI Chat PWA powered by NVIDIA NIM',
-        theme_color: '#0a0a0a',
+        name: 'Fynix Chat',
+        short_name: 'Fynix Chat',
+        description: 'AI Chat PWA',
+        theme_color: '#1a0a00',
         background_color: '#0a0a0a',
         display: 'standalone',
         icons: [
@@ -25,6 +25,11 @@ export default defineConfig({
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
+            type: 'image/png'
+          },
+          {
+            src: 'apple-touch-icon.png',
+            sizes: '180x180',
             type: 'image/png'
           }
         ]
