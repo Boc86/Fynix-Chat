@@ -358,20 +358,24 @@ async function handleApi(req, res) {
       const q = url.searchParams.get('q');
       if (!q) return json(res, 400, { error: 'Missing query' });
 
-      const searxngRes = await fetch(`http://searxng:8080/search?q=${encodeURIComponent(q)}&format=json`);
-      if (!searxngRes.ok) {
-        const text = await searxngRes.text();
-        return json(res, 502, { error: `SearXNG returned ${searxngRes.status}: ${text}` });
+      try {
+        const searxngRes = await fetch(`http://searxng:8080/search?q=${encodeURIComponent(q)}&format=json`);
+        if (!searxngRes.ok) {
+          const text = await searxngRes.text();
+          return json(res, 502, { error: `SearXNG returned ${searxngRes.status}` });
+        }
+
+        const data = await searxngRes.json();
+        const results = (data.results || []).map(r => ({
+          title: r.title || '',
+          snippet: r.content || '',
+          url: r.url || '',
+        }));
+
+        return json(res, 200, { results, query: q });
+      } catch (err) {
+        return json(res, 502, { error: 'SearXNG unreachable. Add the searxng container to your stack on the same Docker network.' });
       }
-
-      const data = await searxngRes.json();
-      const results = (data.results || []).map(r => ({
-        title: r.title || '',
-        snippet: r.content || '',
-        url: r.url || '',
-      }));
-
-      return json(res, 200, { results, query: q });
     }
 
     // ── Unknown API route

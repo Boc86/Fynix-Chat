@@ -199,7 +199,8 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
         ).join('\n\n')
       } catch (err) {
         console.error('Tool execution failed:', err)
-        return 'Search failed.'
+        const msg = err instanceof Error ? err.message : 'unknown error'
+        return `Search failed: ${msg}`
       }
     }
 
