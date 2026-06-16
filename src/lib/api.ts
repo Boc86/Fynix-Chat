@@ -131,3 +131,8 @@ export async function uploadFile(file: File): Promise<LibraryFile> {
 export async function deleteFile(id: string): Promise<void> {
   await request(`/api/files/${id}`, { method: 'DELETE' });
 }
+
+// ── Web Search ──
+export async function searchWeb(query: string): Promise<{ results: { title: string; snippet: string; url: string }[]; query: string }> {
+  return request(`/api/search?q=${encodeURIComponent(query)}`);
+}

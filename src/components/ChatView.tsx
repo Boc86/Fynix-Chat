@@ -1,10 +1,10 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useChatStore, useUIStore, useConfigStore } from '@/stores/chat-store'
 import { usePreferences, usePersonas, useApiConfigs, useUserProfile } from '@/lib/hooks'
 import { createNIMClient } from '@/lib/providers/nvidia-nim'
 import { buildUserProfileText } from '@/lib/providers/context-truncation'
 import { generateId } from '@/lib/storage'
-import { updateConversation, fetchConversation } from '@/lib/api'
+import { updateConversation, fetchConversation, searchWeb } from '@/lib/api'
 import { useToastStore } from '@/stores/toast-store'
 import { InputPill } from './InputPill'
 import { MessageBlock } from './MessageBlock'
@@ -41,6 +41,8 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
       if (cfg) setApiConfig(cfg)
     }
   }, [apiConfig, configs, setApiConfig])
+
+  const [searchEnabled, setSearchEnabled] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const addToast = useToastStore(s => s.addToast)
@@ -164,7 +166,22 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
 
     const submitMessages = updatedMessages.slice(0, -1)
 
-    const userProfileText = profile ? buildUserProfileText(profile) : ''
+    let userProfileText = profile ? buildUserProfileText(profile) : ''
+
+    if (searchEnabled) {
+      try {
+        const searchRes = await searchWeb(text.trim())
+        if (searchRes.results && searchRes.results.length > 0) {
+          const formatted = searchRes.results.map((r, i) =>
+            `${i + 1}. [${r.title}](${r.url})\n   ${r.snippet}`
+          ).join('\n\n')
+          userProfileText += `\n\n---\n\nWeb search results for "${text.trim()}":\n\n${formatted}`
+        }
+      } catch (err) {
+        console.error('Web search failed:', err)
+        addToast('Web search failed, continuing without results', 'info')
+      }
+    }
 
     try {
       if (preferences.streaming) {
@@ -241,7 +258,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
         }
       }
     }
-  }, [isLoading, apiConfig, activePersona, personas, messages, editingMessageId, clearEditingMessage, currentConversationId, onCreateConversation, setIsLoading, setMessages, setCurrentConversation, onRenameConversation, profile, preferences, setAbortController, clearStreamingContent, addToast])
+  }, [isLoading, apiConfig, activePersona, personas, messages, editingMessageId, clearEditingMessage, currentConversationId, onCreateConversation, setIsLoading, setMessages, setCurrentConversation, onRenameConversation, profile, preferences, setAbortController, clearStreamingContent, addToast, searchEnabled])
 
   const editingContent = editingMessageId
     ? messages.find(m => m.id === editingMessageId)?.content
@@ -318,6 +335,8 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
         disabled={isLoading}
         editingContent={editingContent}
         onCancelEdit={editingMessageId ? handleCancelEdit : undefined}
+        searchEnabled={searchEnabled}
+        onToggleSearch={() => setSearchEnabled(s => !s)}
       />
     </div>
   )

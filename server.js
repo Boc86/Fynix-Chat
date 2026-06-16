@@ -353,6 +353,30 @@ async function handleApi(req, res) {
       return json(res, 405, { error: 'Method not allowed' });
     }
 
+    // ── Web Search (DuckDuckGo) ──
+    if (parts[1] === 'search') {
+      const q = url.searchParams.get('q');
+      if (!q) return json(res, 400, { error: 'Missing query' });
+
+      const ddgRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36' }
+      });
+      const html = await ddgRes.text();
+
+      const results = [];
+      const blockRe = /<div[^>]*class="result[^"]*"[^>]*>.*?<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>.*?<a[^>]*class="result__snippet"[^>]*>(.*?)<\/a>/gs;
+      let match;
+      while ((match = blockRe.exec(html)) !== null) {
+        results.push({
+          title: match[2].replace(/<[^>]*>/g, '').trim(),
+          snippet: match[3].replace(/<[^>]*>/g, '').trim(),
+          url: match[1],
+        });
+      }
+
+      return json(res, 200, { results, query: q });
+    }
+
     // ── Unknown API route
     return json(res, 404, { error: 'Not found' });
 

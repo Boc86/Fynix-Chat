@@ -6,9 +6,11 @@ interface InputPillProps {
   disabled?: boolean
   editingContent?: string
   onCancelEdit?: () => void
+  searchEnabled?: boolean
+  onToggleSearch?: () => void
 }
 
-export function InputPill({ onSend, disabled, editingContent, onCancelEdit }: InputPillProps) {
+export function InputPill({ onSend, disabled, editingContent, onCancelEdit, searchEnabled, onToggleSearch }: InputPillProps) {
   const { toggleOverlay } = useUIStore()
   const [text, setText] = useState('')
   const [isFocused, setIsFocused] = useState(false)
@@ -117,7 +119,7 @@ export function InputPill({ onSend, disabled, editingContent, onCancelEdit }: In
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <div className={`input-pill rounded-2xl flex items-end gap-1.5 px-2.5 py-2 ${idle ? 'idle' : ''} ${isFocused || hasContent ? 'shadow-lg shadow-accent-primary/10' : ''}`}>
+        <div className={`input-pill rounded-2xl flex items-end gap-1.5 px-2.5 py-2 ${idle ? 'idle' : ''} ${isFocused || hasContent ? 'shadow-lg shadow-accent-primary/10' : ''} ${searchEnabled ? 'shadow-[0_0_16px_var(--color-accent-primary)] border-accent-primary/40' : ''}`}>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -127,6 +129,24 @@ export function InputPill({ onSend, disabled, editingContent, onCancelEdit }: In
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
           </button>
+
+          {onToggleSearch && (
+            <button
+              type="button"
+              onClick={onToggleSearch}
+              className={`p-1.5 rounded-xl transition-all shrink-0 mb-0.5 ${
+                searchEnabled
+                  ? 'bg-accent-primary/15 text-accent-primary shadow-[0_0_8px_var(--color-accent-primary)]'
+                  : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'
+              }`}
+              title={searchEnabled ? 'Web search on' : 'Web search off'}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="10.5" cy="10.5" r="7.5" strokeWidth={2} />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35" />
+              </svg>
+            </button>
+          )}
 
           <textarea
             ref={textareaRef}
