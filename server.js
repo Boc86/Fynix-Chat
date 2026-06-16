@@ -368,10 +368,10 @@ function proxyRequest(req, res) {
 }
 
 const server = http.createServer((req, res) => {
-  if (req.url.startsWith('/api/')) {
-    handleApi(req, res);
-  } else if (req.url === '/api/proxy') {
+  if (req.url === '/api/proxy') {
     proxyRequest(req, res);
+  } else if (req.url.startsWith('/api/')) {
+    handleApi(req, res);
   } else {
     serveStatic(req, res);
   }

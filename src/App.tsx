@@ -27,11 +27,9 @@ export function App() {
 
   useEffect(() => {
     if (activeConversationId) {
+      setCurrentConversation(activeConversationId)
       getConversation(activeConversationId).then(conv => {
-        if (conv) {
-          setMessages(conv.messages)
-          setCurrentConversation(conv.id)
-        }
+        if (conv) setMessages(conv.messages)
       })
     } else {
       setMessages([])

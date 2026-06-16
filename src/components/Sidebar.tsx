@@ -29,8 +29,12 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, on
   const activePersona = personas.find(p => p.id === activePersonaId)
 
   const handleNewChat = async () => {
-    await createConversation()
-    onClose()
+    try {
+      await createConversation()
+      onClose()
+    } catch (err) {
+      console.error('Failed to create conversation', err)
+    }
   }
 
   const formatDate = (timestamp: number) => {

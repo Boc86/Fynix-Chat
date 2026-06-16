@@ -53,7 +53,8 @@ export function useConversations() {
   const getConversation = useCallback(async (id: string): Promise<Conversation | null> => {
     try {
       return await api.fetchConversation(id);
-    } catch {
+    } catch (err) {
+      console.warn('Failed to load conversation', id, err);
       return null;
     }
   }, []);
