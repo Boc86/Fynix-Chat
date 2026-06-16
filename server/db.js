@@ -81,7 +81,7 @@ function initSchema() {
 
 function migrateUserProfile() {
   const tableInfo = db.prepare("PRAGMA table_info('user_profiles')").all();
-  const hasOldColumns = tableInfo.some((c: any) => c.name === 'name' || c.name === 'background');
+  const hasOldColumns = tableInfo.some(c => c.name === 'name' || c.name === 'background');
   if (hasOldColumns) {
     db.exec(`
       DROP TABLE IF EXISTS user_profiles;

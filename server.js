@@ -218,6 +218,7 @@ async function handleApi(req, res) {
       }
       if (method === 'PUT' && id) {
         const body = await readBody(req);
+        intBools(body, ['isDefault']);
         const fields = [];
         const params = { id };
         for (const [key, value] of Object.entries(body)) {
