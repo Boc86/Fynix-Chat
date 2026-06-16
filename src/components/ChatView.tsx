@@ -3,10 +3,11 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { useChatStore, useUIStore, useConfigStore } from '@/stores/chat-store'
-import { useConversations, usePreferences, usePersonas, useApiConfigs, useUserProfile } from '@/lib/hooks'
+import { usePreferences, usePersonas, useApiConfigs, useUserProfile } from '@/lib/hooks'
 import { createNIMClient } from '@/lib/providers/nvidia-nim'
 import { buildUserProfileText } from '@/lib/providers/context-truncation'
 import { generateId } from '@/lib/storage'
+import { updateConversation } from '@/lib/api'
 import type { Message, Attachment } from '@/types'
 
 function formatFileSize(bytes: number): string {
@@ -15,7 +16,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function ChatView() {
+export function ChatView({ onCreateConversation }: { onCreateConversation?: (title?: string) => Promise<string> }) {
   const {
     messages,
     isLoading,
@@ -28,14 +29,14 @@ export function ChatView() {
     editingMessageId,
     setEditingMessage,
     clearEditingMessage,
-    setMessages
+    setMessages,
+    setCurrentConversation
   } = useChatStore()
   const { toggleSidebar, activePersonaId } = useUIStore()
   const { preferences } = usePreferences()
   const { personas, getPersonaById } = usePersonas()
   const { profile } = useUserProfile()
   const { apiConfig, setApiConfig } = useConfigStore()
-  const { updateConversation } = useConversations()
   const { configs } = useApiConfigs()
 
   const activePersona = getPersonaById(activePersonaId)
@@ -239,9 +240,14 @@ export function ChatView() {
       setAbortController(null)
       clearStreamingContent()
 
-      if (currentConversationId) {
+      let convId = currentConversationId
+      if (!convId && onCreateConversation) {
+        convId = await onCreateConversation()
+        setCurrentConversation(convId)
+      }
+      if (convId) {
         const finalMessages = useChatStore.getState().messages
-        await updateConversation(currentConversationId, { messages: finalMessages })
+        await updateConversation(convId, { messages: finalMessages })
       }
     }
   }

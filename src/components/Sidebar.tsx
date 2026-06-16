@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useUIStore } from '@/stores/chat-store'
-import { useConversations, usePersonas } from '@/lib/hooks'
+import { usePersonas } from '@/lib/hooks'
 import type { Conversation } from '@/types'
 
 interface SidebarProps {
@@ -9,11 +9,12 @@ interface SidebarProps {
   conversations: Conversation[]
   activeConversationId: string | null
   onSelectConversation: (id: string) => void
+  onCreateConversation: (title?: string) => Promise<string>
+  onDeleteConversation: (id: string) => Promise<void>
 }
 
-export function Sidebar({ open, onClose, conversations, activeConversationId, onSelectConversation }: SidebarProps) {
+export function Sidebar({ open, onClose, conversations, activeConversationId, onSelectConversation, onCreateConversation, onDeleteConversation }: SidebarProps) {
   const { activePanel, setActivePanel, activePersonaId } = useUIStore()
-  const { createConversation, deleteConversation } = useConversations()
   const { personas } = usePersonas()
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -30,7 +31,7 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, on
 
   const handleNewChat = async () => {
     try {
-      await createConversation()
+      await onCreateConversation()
       onClose()
     } catch (err) {
       console.error('Failed to create conversation', err)
@@ -122,7 +123,7 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, on
                 <button
                   onClick={() => {
                     if (confirm('Delete this conversation?')) {
-                      deleteConversation(conv.id)
+                      onDeleteConversation(conv.id)
                     }
                   }}
                   className="p-1.5 rounded-md text-text-muted hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"

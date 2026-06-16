@@ -11,7 +11,7 @@ import type { Theme } from './types'
 export function App() {
   const { theme, setTheme, sidebarOpen, activePanel, closeSidebar } = useUIStore()
   const { setMessages, setCurrentConversation } = useChatStore()
-  const { conversations, activeConversationId, setActiveConversation, getConversation } = useConversations()
+  const { conversations, activeConversationId, setActiveConversation, getConversation, createConversation, deleteConversation } = useConversations()
   const { preferences } = usePreferences()
 
   useEffect(() => {
@@ -52,6 +52,15 @@ export function App() {
     closeSidebar()
   }, [setActiveConversation, closeSidebar])
 
+  const handleCreateConversation = useCallback(async (title?: string) => {
+    const id = await createConversation(title)
+    return id
+  }, [createConversation])
+
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    await deleteConversation(id)
+  }, [deleteConversation])
+
   const renderPanel = () => {
     switch (activePanel) {
       case 'settings':
@@ -73,10 +82,12 @@ export function App() {
         conversations={conversations}
         activeConversationId={activeConversationId}
         onSelectConversation={handleSelectConversation}
+        onCreateConversation={handleCreateConversation}
+        onDeleteConversation={handleDeleteConversation}
       />
 
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        <ChatView />
+        <ChatView onCreateConversation={handleCreateConversation} />
       </main>
 
       {activePanel !== 'none' && (
