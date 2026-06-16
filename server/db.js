@@ -56,6 +56,7 @@ function initSchema() {
       api_key TEXT NOT NULL DEFAULT '',
       base_url TEXT NOT NULL DEFAULT '',
       model TEXT NOT NULL DEFAULT '',
+      search_model TEXT NOT NULL DEFAULT '',
       is_default INTEGER NOT NULL DEFAULT 0
     );
 
@@ -85,7 +86,16 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, timestamp);
   `);
 
+  migrateApiConfigs();
   migrateUserProfile();
+}
+
+function migrateApiConfigs() {
+  try {
+    db.exec(`ALTER TABLE api_configs ADD COLUMN search_model TEXT NOT NULL DEFAULT ''`);
+  } catch {
+    // Column already exists — ignore
+  }
 }
 
 function migrateUserProfile() {

@@ -282,11 +282,11 @@ async function handleApi(req, res) {
       if (method === 'POST' && !id) {
         const body = await readBody(req);
         const cfgId = body.id || crypto.randomUUID();
-        run(`INSERT INTO api_configs (id, name, api_key, base_url, model, is_default)
-          VALUES (@id, @name, @apiKey, @baseUrl, @model, @isDefault)`, {
+        run(`INSERT INTO api_configs (id, name, api_key, base_url, model, search_model, is_default)
+          VALUES (@id, @name, @apiKey, @baseUrl, @model, @searchModel, @isDefault)`, {
           id: cfgId, name: body.name || '', apiKey: body.apiKey || '',
           baseUrl: body.baseUrl || '', model: body.model || '',
-          isDefault: body.isDefault ? 1 : 0
+          searchModel: body.searchModel || '', isDefault: body.isDefault ? 1 : 0
         });
         return json(res, 201, { id: cfgId });
       }

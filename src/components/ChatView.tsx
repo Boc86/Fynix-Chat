@@ -162,7 +162,8 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     const abortController = new AbortController()
     setAbortController(abortController)
 
-    const client = createNIMClient(apiConfig.apiKey, apiConfig.baseUrl, apiConfig.model)
+    const activeModel = searchEnabled && apiConfig.searchModel ? apiConfig.searchModel : apiConfig.model
+    const client = createNIMClient(apiConfig.apiKey, apiConfig.baseUrl, activeModel)
 
     const submitMessages = updatedMessages.slice(0, -1)
 

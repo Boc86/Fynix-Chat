@@ -53,6 +53,7 @@ export interface ApiConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+  searchModel: string;
   isDefault: boolean;
 }
 

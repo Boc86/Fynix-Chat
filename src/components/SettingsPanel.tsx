@@ -16,6 +16,7 @@ export function SettingsPanel() {
     apiKey: '',
     baseUrl: '',
     model: '',
+    searchModel: '',
     isDefault: false
   })
 
@@ -37,7 +38,7 @@ export function SettingsPanel() {
       }
       setShowAddConfig(false)
       setEditingConfig(null)
-      setConfigForm({ name: '', apiKey: '', baseUrl: '', model: '', isDefault: false })
+      setConfigForm({ name: '', apiKey: '', baseUrl: '', model: '', searchModel: '', isDefault: false })
     } catch (err) {
       alert(`Failed to save config: ${err instanceof Error ? err.message : 'Unknown error'}`)
     }
@@ -50,6 +51,7 @@ export function SettingsPanel() {
       apiKey: config.apiKey,
       baseUrl: config.baseUrl,
       model: config.model,
+      searchModel: config.searchModel,
       isDefault: config.isDefault
     })
     setShowAddConfig(true)
@@ -178,7 +180,7 @@ export function SettingsPanel() {
             <button
               onClick={() => {
                 setEditingConfig(null)
-                setConfigForm({ name: '', apiKey: '', baseUrl: '', model: '', isDefault: false })
+      setConfigForm({ name: '', apiKey: '', baseUrl: '', model: '', searchModel: '', isDefault: false })
                 setShowAddConfig(true)
               }}
               className="text-accent-primary hover:text-accent-secondary text-sm font-medium"
@@ -212,9 +214,16 @@ export function SettingsPanel() {
               />
               <input
                 type="text"
-                placeholder="Model (e.g., meta/llama-3.1-405b-instruct)"
+                placeholder="Chat model (e.g., meta/llama-3.1-405b-instruct)"
                 value={configForm.model}
                 onChange={e => setConfigForm(f => ({ ...f, model: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-tertiary border-none rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              />
+              <input
+                type="text"
+                placeholder="Search model — used when web search is on (e.g., meta/llama-3.1-70b-instruct)"
+                value={configForm.searchModel}
+                onChange={e => setConfigForm(f => ({ ...f, searchModel: e.target.value }))}
                 className="w-full px-3 py-2 bg-surface-tertiary border-none rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary"
               />
               <label className="flex items-center gap-2">
@@ -289,6 +298,9 @@ export function SettingsPanel() {
                 </div>
                 <div className="text-xs text-text-muted truncate">{config.baseUrl}</div>
                 <div className="text-xs text-text-muted truncate">{config.model}</div>
+                {config.searchModel && (
+                  <div className="text-xs text-text-muted/60 truncate">Search: {config.searchModel}</div>
+                )}
                 {!config.isDefault && (
                   <button
                     onClick={(e) => {
