@@ -168,26 +168,28 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     const userProfileText = profile ? buildUserProfileText(profile) : ''
 
     // Proactive search: fetch results before sending to model
-    let searchContext = ''
+    let submitMessages = updatedMessages.slice(0, -1)
     if (searchEnabled) {
       try {
         const res = await searchWeb(text.trim())
-        if (res.results && res.results.length > 0) {
-          searchContext = '[Web Search Results]\n' + res.results.map((r, i) =>
-            `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.snippet}`
-          ).join('\n\n')
+        const results = res.results || []
+        const searchStr = results.length > 0
+          ? '[Web Search Results for "' + text.trim() + '"]\n' + results.map((r, i) =>
+              `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.snippet}`
+            ).join('\n\n')
+          : '[Web Search] No results found for "' + text.trim() + '".'
+        // Append to the last user message so the model always sees it
+        const lastUser = submitMessages[submitMessages.length - 1]
+        if (lastUser && lastUser.role === 'user') {
+          lastUser.content += '\n\n' + searchStr + '\n\n[Use the above search results to answer the question. Cite sources by name.]'
         }
       } catch (err) {
         console.error('Proactive search failed:', err)
+        const lastUser = submitMessages[submitMessages.length - 1]
+        if (lastUser && lastUser.role === 'user') {
+          lastUser.content += '\n\n[Web Search] Search failed: ' + (err instanceof Error ? err.message : 'unknown error')
+        }
       }
-    }
-
-    let submitMessages = updatedMessages.slice(0, -1)
-    if (searchContext) {
-      submitMessages = [
-        { role: 'user', content: searchContext + '\n\n[Use the above search results to answer the user\'s question. Cite sources by name.]', id: generateId(), timestamp: Date.now() },
-        ...submitMessages,
-      ]
     }
 
     const chatOptions = {
