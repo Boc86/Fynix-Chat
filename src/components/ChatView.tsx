@@ -1,7 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { useRef, useEffect, useCallback } from 'react'
 import { useChatStore, useUIStore, useConfigStore } from '@/stores/chat-store'
 import { usePreferences, usePersonas, useApiConfigs, useUserProfile } from '@/lib/hooks'
 import { createNIMClient } from '@/lib/providers/nvidia-nim'
@@ -9,13 +6,9 @@ import { buildUserProfileText } from '@/lib/providers/context-truncation'
 import { generateId } from '@/lib/storage'
 import { updateConversation, fetchConversation } from '@/lib/api'
 import { useToastStore } from '@/stores/toast-store'
-import type { Message, Attachment } from '@/types'
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
+import { InputPill } from './InputPill'
+import { MessageBlock } from './MessageBlock'
+import type { Message } from '@/types'
 
 export function ChatView({ onCreateConversation, onRenameConversation }: { onCreateConversation?: (title?: string) => Promise<string>; onRenameConversation?: (id: string, title: string) => Promise<void> }) {
   const {
@@ -23,11 +16,9 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     isLoading,
     setIsLoading,
     streamingContent,
-    setStreamingContent,
     clearStreamingContent,
     setAbortController,
     currentConversationId,
-    currentConversationTitle,
     editingMessageId,
     setEditingMessage,
     clearEditingMessage,
@@ -35,7 +26,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     setCurrentConversation,
     setCurrentConversationTitle
   } = useChatStore()
-  const { toggleSidebar, activePersonaId } = useUIStore()
+  const { activePersonaId } = useUIStore()
   const { preferences } = usePreferences()
   const { personas, getPersonaById } = usePersonas()
   const { profile } = useUserProfile()
@@ -51,12 +42,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     }
   }, [apiConfig, configs, setApiConfig])
 
-  const [input, setInput] = useState('')
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
   const addToast = useToastStore(s => s.addToast)
   const creatingConvIdRef = useRef<string | null>(null)
 
@@ -79,38 +65,25 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     scrollToBottom()
   }, [messages, streamingContent, scrollToBottom])
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
-    }
-  }, [input])
-
-  const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    setAttachedFiles(prev => [...prev, ...files].slice(10))
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
-  const removeAttachedFile = (index: number) => {
-    setAttachedFiles(prev => prev.filter((_, i) => i !== index))
-  }
-
   const handleEditMessage = (msg: Message) => {
-    setInput(msg.content)
     setEditingMessage(msg.id)
-    textareaRef.current?.focus()
   }
 
-  const cancelEdit = () => {
-    setInput('')
-    clearEditingMessage()
+  const setErrorOnLastMessage = (errMsg: string) => {
+    const msgs = useChatStore.getState().messages
+    const lastIndex = msgs.length - 1
+    if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
+      const updated = [...msgs]
+      const m = updated[lastIndex]
+      if (m) {
+        updated[lastIndex] = { ...m, content: `Error: ${errMsg}` }
+        useChatStore.getState().setMessages(updated)
+      }
+    }
   }
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault()
-
-    if (!input.trim() && attachedFiles.length === 0) return
+  const handleSend = useCallback(async (text: string, files: File[]) => {
+    if (!text.trim() && files.length === 0) return
     if (isLoading) return
     if (!apiConfig) {
       addToast('Please configure your API settings first', 'error')
@@ -123,21 +96,20 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
       return
     }
 
-    const userContent = input.trim()
-    const fileAttachments: Attachment[] = attachedFiles.map(file => ({
+    const fileAttachments = files.length > 0 ? files.map(file => ({
       id: generateId(),
-      type: file.type.startsWith('image/') ? 'image' : 'file',
+      type: (file.type.startsWith('image/') ? 'image' : 'file') as 'image' | 'file',
       name: file.name,
       url: URL.createObjectURL(file),
       size: file.size
-    }))
+    })) : undefined
 
     const userMessage: Message = {
       id: editingMessageId ?? generateId(),
       role: 'user',
-      content: userContent,
+      content: text.trim(),
       timestamp: Date.now(),
-      attachments: fileAttachments.length > 0 ? fileAttachments : undefined
+      attachments: fileAttachments
     }
 
     let updatedMessages: Message[]
@@ -163,15 +135,13 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
       creatingConvIdRef.current = convId
       setCurrentConversation(convId)
       if (onRenameConversation) {
-        const title = userContent.slice(0, 80) || 'New Chat'
+        const title = text.trim().slice(0, 80) || 'New Chat'
         await updateConversation(convId, { title, messages: updatedMessages })
         useChatStore.getState().setCurrentConversationTitle(title)
         await onRenameConversation(convId, title)
       }
     }
 
-    setInput('')
-    setAttachedFiles([])
     clearStreamingContent()
     setIsLoading(true)
 
@@ -207,7 +177,6 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
           abortSignal: abortController.signal,
           onChunk: (chunk) => {
             assistantContent += chunk
-            setStreamingContent(chunk)
             const msgs = useChatStore.getState().messages
             const lastIndex = msgs.length - 1
             if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
@@ -221,17 +190,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
           },
           onError: (err) => {
             console.error('Chat error:', err)
-            assistantContent = `Error: ${err.message}`
-            const msgs = useChatStore.getState().messages
-            const lastIndex = msgs.length - 1
-            if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
-              const updated = [...msgs]
-              const msg = updated[lastIndex]
-              if (msg) {
-                updated[lastIndex] = { ...msg, content: `Error: ${err.message}` }
-                useChatStore.getState().setMessages(updated)
-              }
-            }
+            setErrorOnLastMessage(err.message)
           }
         })
       } else {
@@ -244,17 +203,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
           abortSignal: abortController.signal,
           onError: (err) => {
             console.error('Chat error:', err)
-            assistantContent = `Error: ${err.message}`
-            const msgs = useChatStore.getState().messages
-            const lastIndex = msgs.length - 1
-            if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
-              const updated = [...msgs]
-              const msg = updated[lastIndex]
-              if (msg) {
-                updated[lastIndex] = { ...msg, content: `Error: ${err.message}` }
-                useChatStore.getState().setMessages(updated)
-              }
-            }
+            setErrorOnLastMessage(err.message)
           }
         })
         assistantContent = response
@@ -287,293 +236,89 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
         ]
         try {
           await updateConversation(convId, { messages: finalMessages })
-        } catch (err) {
+        } catch {
           addToast('Failed to save messages', 'error')
         }
       }
     }
-  }
+  }, [isLoading, apiConfig, activePersona, personas, messages, editingMessageId, clearEditingMessage, currentConversationId, onCreateConversation, setIsLoading, setMessages, setCurrentConversation, onRenameConversation, profile, preferences, setAbortController, clearStreamingContent, addToast])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit()
-    }
+  const editingContent = editingMessageId
+    ? messages.find(m => m.id === editingMessageId)?.content
+    : undefined
+
+  const handleCancelEdit = () => {
+    clearEditingMessage()
   }
 
   return (
     <div className="flex-1 flex flex-col h-full">
-      <header className="header-shimmer flex items-center gap-3 px-4 py-3">
-        <button
-          onClick={toggleSidebar}
-          className="p-2 rounded-lg hover:bg-surface-hover hover:scale-[1.05] active:scale-[0.95] text-text-secondary transition-all md:hidden"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-
-        <div className="flex-1 min-w-0">
-          <h2 className="font-medium text-text-primary truncate">
-            {currentConversationTitle || 'New Chat'}
-          </h2>
-          {activePersona && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-primary/10 text-accent-primary text-xs font-medium">
-              {activePersona.name}
-            </span>
-          )}
-        </div>
-
-        {isLoading && (
-          <button
-            onClick={() => useChatStore.getState().abortStream()}
-            className="px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg text-sm hover:bg-red-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all"
-          >
-            Stop
-          </button>
-        )}
-      </header>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-text-muted">
-            <div className="relative w-24 h-24 mb-6">
+      <div className="flex-1 overflow-y-auto px-0 py-24 pb-36 relative">
+        {messages.length === 0 && !isLoading && (
+          <div className="h-full flex flex-col items-center justify-center text-text-muted px-6">
+            <div className="relative w-20 h-20 mb-5">
               <div className="absolute inset-0 rounded-full bg-accent-primary/10 animate-float" />
-              <div className="absolute inset-4 rounded-full bg-accent-primary/20 animate-float" style={{ animationDelay: '0.5s' }} />
-              <div className="absolute inset-8 rounded-full bg-accent-primary/30 animate-float" style={{ animationDelay: '1s' }} />
+              <div className="absolute inset-3 rounded-full bg-accent-primary/20 animate-float" style={{ animationDelay: '0.5s' }} />
+              <div className="absolute inset-6 rounded-full bg-accent-primary/30 animate-float" style={{ animationDelay: '1s' }} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <svg className="w-10 h-10 text-accent-primary/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-8 h-8 text-accent-primary/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
               </div>
             </div>
-            <p className="text-lg font-medium mb-1 text-text-primary">Start a conversation</p>
-            <p className="text-sm">Ask a question or share something to begin</p>
+            <p className="text-base font-medium mb-1 text-text-primary">Start a conversation</p>
+            <p className="text-sm text-text-muted/70">Type below or swipe left for history</p>
           </div>
         )}
 
-        {messages.map((message) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            onEdit={message.role === 'user' ? handleEditMessage : undefined}
-          />
-        ))}
-
-        {isLoading && streamingContent === '' && messages[messages.length - 1]?.role === 'assistant' && (
-          <div className="flex gap-3">
-            <div className="avatar-ring group w-8 h-8 rounded-full bg-surface-tertiary flex items-center justify-center text-sm font-medium text-text-primary overflow-hidden shrink-0">
-              <span className="relative z-10">AI</span>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-3 glass-panel rounded-2xl">
-              <span className="w-2.5 h-2.5 rounded-full bg-accent-primary animate-typing-wave" />
-              <span className="w-2.5 h-2.5 rounded-full bg-accent-primary animate-typing-wave" style={{ animationDelay: '0.2s' }} />
-              <span className="w-2.5 h-2.5 rounded-full bg-accent-primary animate-typing-wave" style={{ animationDelay: '0.4s' }} />
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="px-4 pb-4 pt-2">
-        <div className="glass-panel rounded-2xl overflow-hidden shadow-lg">
-          {attachedFiles.length > 0 && (
-            <div className="flex gap-2 p-3 pb-0 flex-wrap">
-              {attachedFiles.map((file, index) => (
-                <div key={index} className="relative group">
-                  {file.type.startsWith('image/') ? (
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={file.name}
-                      className="w-20 h-20 object-cover rounded-lg"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-surface-secondary rounded-lg border border-surface-tertiary max-w-48">
-                      <svg className="w-5 h-5 shrink-0 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                      <div className="min-w-0">
-                        <div className="text-sm text-text-primary truncate">{file.name}</div>
-                        <div className="text-xs text-text-muted">{formatFileSize(file.size)}</div>
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => removeAttachedFile(index)}
-                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    x
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="flex gap-2 items-end p-3">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileAttach}
-              accept="*/*"
-              multiple
-              className="hidden"
-            />
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2.5 rounded-xl bg-surface-tertiary/50 hover:bg-surface-hover hover:scale-[1.05] active:scale-[0.95] text-text-secondary transition-all"
-              title="Attach file"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-              </svg>
-            </button>
-
-            {editingMessageId && (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="px-3 py-2.5 rounded-xl bg-surface-tertiary/50 hover:bg-surface-hover hover:scale-[1.05] active:scale-[0.95] text-text-secondary text-sm transition-all"
-              >
-                Cancel
-              </button>
-            )}
-
-            <div className="flex-1 relative">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={editingMessageId ? 'Edit your message...' : 'Type your message...'}
-                className="w-full px-4 py-2.5 bg-surface-tertiary/30 border border-surface-tertiary/50 rounded-xl text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:border-accent-primary/50 focus:shadow-[0_0_8px_var(--color-accent-primary)] transition-all"
-                rows={1}
-                style={{ fontSize: `${useUIStore.getState().fontSizeValue}px` }}
+        <div className="max-w-3xl mx-auto space-y-8">
+          {messages.map((message, idx) => {
+            const prevRole = idx > 0 ? messages[idx - 1]?.role : null
+            return (
+              <MessageBlock
+                key={message.id}
+                message={message}
+                isFirst={prevRole !== message.role}
+                onEdit={message.role === 'user' ? handleEditMessage : undefined}
               />
-            </div>
-
-            <button
-              type="submit"
-              disabled={(!input.trim() && attachedFiles.length === 0) || isLoading}
-              className="group p-3 bg-accent-primary hover:bg-accent-secondary disabled:bg-surface-tertiary disabled:text-text-muted text-white rounded-xl transition-all hover:scale-[1.05] active:scale-[0.95] hover:shadow-[0_0_12px_var(--color-accent-primary)] disabled:shadow-none"
-            >
-              <svg className="w-5 h-5 transition-transform group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function FileAttachmentCard({ attachment, light }: { attachment: Attachment; light?: boolean }) {
-  return (
-    <a
-      href={attachment.url}
-      download={attachment.name}
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors no-underline max-w-64 ${
-        light
-          ? 'bg-white/10 border border-white/20 hover:bg-white/20 text-white'
-          : 'bg-surface-primary/10 border border-surface-tertiary/30 hover:bg-surface-primary/20 text-inherit'
-      }`}
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-      </svg>
-      <div className="min-w-0">
-        <div className="text-sm truncate">{attachment.name}</div>
-        <div className="text-xs opacity-70">{formatFileSize(attachment.size)}</div>
-      </div>
-    </a>
-  )
-}
-
-function MessageBubble({ message, onEdit }: { message: Message; onEdit?: (msg: Message) => void }) {
-  const isUser = message.role === 'user'
-
-  return (
-    <div className={`flex gap-3 group ${isUser ? 'flex-row-reverse' : ''} animate-fade-in-up`}>
-      <div className={`avatar-ring group w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium overflow-hidden ${
-        isUser
-          ? 'bg-gradient-to-br from-accent-primary to-accent-secondary text-white shadow-[0_0_6px_var(--color-accent-primary)]'
-          : 'bg-surface-tertiary text-text-primary'
-      }`}>
-        <span className="relative z-10">{isUser ? 'U' : 'AI'}</span>
-      </div>
-
-      <div className={`flex-1 max-w-2xl ${isUser ? 'text-right' : ''}`}>
-        <div
-          className={`inline-block text-left px-4 py-3 relative transition-all duration-200 ${
-            isUser
-              ? 'bg-gradient-to-br from-accent-primary to-accent-secondary text-white rounded-2xl shadow-lg shadow-accent-primary/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-accent-primary/30'
-              : 'glass-panel rounded-2xl text-text-primary hover:-translate-y-0.5 hover:shadow-lg'
-          }`}
-        >
-          {isUser && onEdit && (
-            <button
-              onClick={() => onEdit(message)}
-              className="absolute -top-2 -right-2 w-7 h-7 bg-surface-secondary border border-surface-tertiary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-surface-hover shadow-sm"
-              title="Edit message"
-            >
-              <svg className="w-3.5 h-3.5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
-          )}
-          {message.attachments?.map(att => (
-            att.type === 'image' ? (
-              <img key={att.id} src={att.url} alt={att.name} className="max-w-xs rounded-lg mb-2" />
-            ) : (
-              <div key={att.id} className="mb-2">
-                <FileAttachmentCard attachment={att} light={isUser} />
-              </div>
             )
-          ))}
-          {isUser ? (
-            <p className="whitespace-pre-wrap">{message.content}</p>
-          ) : (
-            <div className="markdown-content">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  code({ className, children }) {
-                    const match = /language-(\w+)/.exec(className || '')
-                    const isInline = !match && !className
-                    return isInline ? (
-                      <code className={className}>{children}</code>
-                    ) : (
-                      <SyntaxHighlighter
-                        customStyle={{
-                          background: 'var(--color-surface-tertiary)',
-                          margin: '1em 0',
-                          borderRadius: '8px',
-                          borderLeft: '3px solid var(--color-accent-primary)'
-                        }}
-                        language={match ? match[1] : 'text'}
-                        PreTag="div"
-                        className="rounded-lg !my-2"
-                      >
-                        {String(children).replace(/\n$/, '')}
-                      </SyntaxHighlighter>
-                    )
-                  }
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
+          })}
+
+          {isLoading && streamingContent === '' && (
+            <div className="px-4 md:px-8">
+              <div className="role-dot" />
+              <div className="flex items-center gap-1.5 pl-1">
+                <span className="w-2 h-2 rounded-full bg-accent-primary/60 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-accent-primary/40 animate-pulse" style={{ animationDelay: '0.2s' }} />
+                <span className="w-2 h-2 rounded-full bg-accent-primary/20 animate-pulse" style={{ animationDelay: '0.4s' }} />
+              </div>
             </div>
           )}
-        </div>
-        <div className="text-xs text-text-muted mt-1.5 px-1">
-          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+
+          <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {isLoading && (
+        <button
+          onClick={() => useChatStore.getState().abortStream()}
+          className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 px-4 py-2 bg-surface-secondary/80 backdrop-blur-md border border-surface-tertiary rounded-xl text-sm text-text-secondary hover:text-red-500 hover:border-red-500/30 transition-all"
+        >
+          <span className="flex items-center gap-2">
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="6" width="12" height="12" rx="1" />
+            </svg>
+            Stop generating
+          </span>
+        </button>
+      )}
+
+      <InputPill
+        onSend={handleSend}
+        disabled={isLoading}
+        editingContent={editingContent}
+        onCancelEdit={editingMessageId ? handleCancelEdit : undefined}
+      />
     </div>
   )
 }

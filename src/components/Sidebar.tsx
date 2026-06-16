@@ -18,7 +18,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ open, onClose, conversations, activeConversationId, conversationsLoading, onSelectConversation, onCreateConversation, onDeleteConversation, onRenameConversation }: SidebarProps) {
-  const { activePanel, setActivePanel, activePersonaId } = useUIStore()
+  const { activeToolTab, setActiveToolTab, activePersonaId } = useUIStore()
   const { personas } = usePersonas()
   const addToast = useToastStore(s => s.addToast)
   const [searchQuery, setSearchQuery] = useState('')
@@ -212,9 +212,9 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, co
 
         <div className="p-3 border-t border-surface-tertiary space-y-1">
           <button
-            onClick={() => setActivePanel('library')}
+            onClick={() => { setActiveToolTab('library'); onClose() }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              activePanel === 'library' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
+              activeToolTab === 'library' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
             }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -224,9 +224,9 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, co
           </button>
 
           <button
-            onClick={() => setActivePanel('user-profile')}
+            onClick={() => { setActiveToolTab('user-profile'); onClose() }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              activePanel === 'user-profile' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
+              activeToolTab === 'user-profile' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
             }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -236,9 +236,9 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, co
           </button>
 
           <button
-            onClick={() => setActivePanel('persona')}
+            onClick={() => { setActiveToolTab('persona'); onClose() }}
             className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              activePanel === 'persona' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
+              activeToolTab === 'persona' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
             }`}
           >
             <div className="flex items-center gap-3">
@@ -253,9 +253,9 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, co
           </button>
 
           <button
-            onClick={() => setActivePanel('settings')}
+            onClick={() => { setActiveToolTab('settings'); onClose() }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              activePanel === 'settings' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
+              activeToolTab === 'settings' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
             }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

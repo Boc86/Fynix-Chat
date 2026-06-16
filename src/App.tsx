@@ -1,46 +1,41 @@
 import { useEffect, useCallback, useState, useRef } from 'react'
 import { useUIStore, useChatStore } from './stores/chat-store'
 import { useConversations, usePreferences } from './lib/hooks'
-import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
-import { SettingsPanel } from './components/SettingsPanel'
-import { PersonaPanel } from './components/PersonaPanel'
-import { UserProfilePanel } from './components/UserProfilePanel'
-import { LibraryPanel } from './components/LibraryPanel'
+import { ConversationOverlay } from './components/ConversationOverlay'
+import { ToolsOverlay } from './components/ToolsOverlay'
 import { ToastContainer } from './components/ToastContainer'
 import type { Theme } from './types'
 
 export function App() {
-  const { theme, setTheme, sidebarOpen, activePanel, closeSidebar, setActivePanel } = useUIStore()
+  const { theme, setTheme, activeOverlay, closeOverlay } = useUIStore()
   const { setMessages, setCurrentConversation, setCurrentConversationTitle } = useChatStore()
   const { conversations, activeConversationId, setActiveConversation, createConversation, deleteConversation, updateConversation, loading: conversationsLoading } = useConversations()
   const { preferences } = usePreferences()
 
-  const [closingPanel, setClosingPanel] = useState<string | null>(null)
-  const prevPanelRef = useRef(activePanel)
+  const [closingOverlay, setClosingOverlay] = useState<string | null>(null)
+  const prevOverlayRef = useRef(activeOverlay)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
-    if (prevPanelRef.current !== 'none' && activePanel === 'none') {
-      setClosingPanel(prevPanelRef.current)
+    if (prevOverlayRef.current !== 'none' && activeOverlay === 'none') {
+      setClosingOverlay(prevOverlayRef.current)
       closeTimerRef.current = setTimeout(() => {
-        setClosingPanel(null)
+        setClosingOverlay(null)
       }, 300)
-    } else if (activePanel !== 'none') {
+    } else if (activeOverlay !== 'none') {
       if (closeTimerRef.current) {
         clearTimeout(closeTimerRef.current)
         closeTimerRef.current = undefined
       }
-      setClosingPanel(null)
+      setClosingOverlay(null)
     }
-    prevPanelRef.current = activePanel
+    prevOverlayRef.current = activeOverlay
 
     return () => {
-      if (closeTimerRef.current) {
-        clearTimeout(closeTimerRef.current)
-      }
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
     }
-  }, [activePanel])
+  }, [activeOverlay])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
@@ -67,18 +62,17 @@ export function App() {
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && sidebarOpen) {
-        closeSidebar()
+      if (e.key === 'Escape' && activeOverlay !== 'none') {
+        closeOverlay()
       }
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [sidebarOpen, closeSidebar])
+  }, [activeOverlay, closeOverlay])
 
   const handleSelectConversation = useCallback(async (id: string) => {
     await setActiveConversation(id)
-    closeSidebar()
-  }, [setActiveConversation, closeSidebar])
+  }, [setActiveConversation])
 
   const handleCreateConversation = useCallback(async (title?: string) => {
     const id = await createConversation(title)
@@ -96,53 +90,54 @@ export function App() {
     }
   }, [updateConversation, setCurrentConversationTitle])
 
-  const currentPanel = activePanel !== 'none' ? activePanel : closingPanel
-  const panelClosing = closingPanel !== null && activePanel === 'none'
-
-  const renderPanelFor = (panel: string | null) => {
-    switch (panel) {
-      case 'settings': return <SettingsPanel />
-      case 'persona': return <PersonaPanel />
-      case 'user-profile': return <UserProfilePanel />
-      case 'library': return <LibraryPanel />
-      default: return null
-    }
-  }
+  const isConvOpen = activeOverlay === 'conversations' || closingOverlay === 'conversations'
+  const convClosing = closingOverlay === 'conversations' && activeOverlay === 'none'
+  const isToolsOpen = activeOverlay === 'tools' || closingOverlay === 'tools'
+  const toolsClosing = closingOverlay === 'tools' && activeOverlay === 'none'
 
   return (
     <div className="h-full flex bg-surface-primary animate-fade-in">
-      <Sidebar
-        open={sidebarOpen}
-        onClose={closeSidebar}
-        conversations={conversations}
-        activeConversationId={activeConversationId}
-        conversationsLoading={conversationsLoading}
-        onSelectConversation={handleSelectConversation}
-        onCreateConversation={handleCreateConversation}
-        onDeleteConversation={handleDeleteConversation}
-        onRenameConversation={handleRenameConversation}
-      />
+      {isConvOpen && (
+        <ConversationOverlay
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          conversationsLoading={conversationsLoading}
+          onSelectConversation={handleSelectConversation}
+          onCreateConversation={handleCreateConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onRenameConversation={handleRenameConversation}
+          onClose={closeOverlay}
+          className={convClosing ? 'animate-slide-out-left' : ''}
+        />
+      )}
+
+      {isToolsOpen && (
+        <ToolsOverlay
+          onClose={closeOverlay}
+          className={toolsClosing ? 'animate-slide-out-right' : ''}
+        />
+      )}
 
       <main className="flex-1 flex flex-col min-w-0 h-full">
         <ChatView
           onCreateConversation={handleCreateConversation}
           onRenameConversation={handleRenameConversation}
         />
-      </main>
 
-      {currentPanel && (
-        <>
-          <div
-            className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${panelClosing ? 'opacity-0' : 'opacity-100'}`}
-            onClick={() => setActivePanel('none')}
+        {/* Desktop edge tap zones */}
+        <div className="hidden md:block">
+          <button
+            onClick={() => useUIStore.getState().toggleOverlay('conversations')}
+            className="fixed left-0 top-0 bottom-24 w-10 z-10 cursor-pointer"
+            aria-label="Open conversations"
           />
-          <div className={`fixed right-0 top-0 h-full w-full max-w-md glass-panel-strong z-50 overflow-y-auto ${
-            panelClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'
-          }`}>
-            {renderPanelFor(currentPanel)}
-          </div>
-        </>
-      )}
+          <button
+            onClick={() => useUIStore.getState().toggleOverlay('tools')}
+            className="fixed right-0 top-0 bottom-24 w-10 z-10 cursor-pointer"
+            aria-label="Open tools"
+          />
+        </div>
+      </main>
 
       <ToastContainer />
     </div>

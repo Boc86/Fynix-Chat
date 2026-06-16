@@ -34,15 +34,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   editingMessageId: null,
 
   setCurrentConversation: (id) => set({ currentConversationId: id }),
-
   setCurrentConversationTitle: (title) => set({ currentConversationTitle: title }),
-
   setMessages: (messages) => set({ messages }),
-
-  addMessage: (message) => set((state) => ({
-    messages: [...state.messages, message]
-  })),
-
+  addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   updateLastMessage: (content) => set((state) => {
     const messages = [...state.messages];
     const lastIndex = messages.length - 1;
@@ -51,17 +45,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
     return { messages };
   }),
-
   setIsLoading: (loading) => set({ isLoading: loading }),
-
-  setStreamingContent: (content) => set((state) => ({
-    streamingContent: state.streamingContent + content
-  })),
-
+  setStreamingContent: (content) => set((state) => ({ streamingContent: state.streamingContent + content })),
   clearStreamingContent: () => set({ streamingContent: '' }),
-
   setAbortController: (controller) => set({ abortController: controller }),
-
   abortStream: () => {
     const { abortController } = get();
     if (abortController) {
@@ -69,27 +56,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ abortController: null, isLoading: false });
     }
   },
-
   setEditingMessage: (id) => set({ editingMessageId: id }),
-
   clearEditingMessage: () => set({ editingMessageId: null })
 }));
+
+type Overlay = 'none' | 'conversations' | 'tools';
+type ToolTab = 'settings' | 'persona' | 'user-profile' | 'library';
 
 interface UIState {
   theme: Theme;
   fontSize: FontSize;
-  sidebarOpen: boolean;
-  activePanel: 'none' | 'settings' | 'persona' | 'history' | 'user-profile' | 'library';
   fontSizeValue: number;
+  activeOverlay: Overlay;
+  activeToolTab: ToolTab;
   activePersonaId: string;
 
   setTheme: (theme: Theme) => void;
   setFontSize: (size: FontSize) => void;
-  setSidebarOpen: (open: boolean) => void;
-  setActivePanel: (panel: 'none' | 'settings' | 'persona' | 'history' | 'user-profile' | 'library') => void;
-  toggleSidebar: () => void;
-  closeSidebar: () => void;
+  setActiveOverlay: (overlay: Overlay) => void;
+  setActiveToolTab: (tab: ToolTab) => void;
+  closeOverlay: () => void;
+  toggleOverlay: (overlay: Overlay) => void;
   setActivePersonaId: (id: string) => void;
+  /** @deprecated Use closeOverlay/toggleOverlay instead */
+  setActivePanel: (panel: string) => void;
 }
 
 const fontSizeMap: Record<FontSize, number> = {
@@ -101,37 +91,31 @@ const fontSizeMap: Record<FontSize, number> = {
 export const useUIStore = create<UIState>((set) => ({
   theme: 'dark',
   fontSize: 'medium',
-  sidebarOpen: false,
-  activePanel: 'none',
   fontSizeValue: 16,
+  activeOverlay: 'none',
+  activeToolTab: 'settings',
   activePersonaId: 'default',
 
   setTheme: (theme) => set({ theme }),
-
-  setFontSize: (fontSize) => set({
-    fontSize,
-    fontSizeValue: fontSizeMap[fontSize]
-  }),
-
-  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
-
-  setActivePanel: (activePanel) => set({ activePanel }),
-
-  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-
-  closeSidebar: () => set({ sidebarOpen: false, activePanel: 'none' }),
-
-  setActivePersonaId: (activePersonaId) => set({ activePersonaId })
+  setFontSize: (fontSize) => set({ fontSize, fontSizeValue: fontSizeMap[fontSize] }),
+  setActiveOverlay: (activeOverlay) => set({ activeOverlay }),
+  setActiveToolTab: (activeToolTab) => set({ activeToolTab }),
+  closeOverlay: () => set({ activeOverlay: 'none' }),
+  toggleOverlay: (overlay) => set((state) => ({ activeOverlay: state.activeOverlay === overlay ? 'none' : overlay })),
+  setActivePersonaId: (activePersonaId) => set({ activePersonaId }),
+  setActivePanel: (panel) => {
+    if (panel === 'none') return set({ activeOverlay: 'none' });
+    const tab = panel as ToolTab;
+    set({ activeOverlay: 'tools', activeToolTab: tab });
+  },
 }));
 
 interface ConfigState {
   apiConfig: ApiConfig | null;
-
   setApiConfig: (config: ApiConfig | null) => void;
 }
 
 export const useConfigStore = create<ConfigState>((set) => ({
   apiConfig: null,
-
   setApiConfig: (apiConfig) => set({ apiConfig })
 }));

@@ -3,7 +3,7 @@ import { useUIStore } from '@/stores/chat-store'
 import { useFileLibrary } from '@/lib/hooks'
 
 export function LibraryPanel() {
-  const { closeSidebar } = useUIStore()
+  const { closeOverlay } = useUIStore()
   const { files, loading, addFile, removeFile } = useFileLibrary()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -29,7 +29,7 @@ export function LibraryPanel() {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-text-primary">File Library</h2>
         <button
-          onClick={closeSidebar}
+          onClick={closeOverlay}
           className="p-2 rounded-lg hover:bg-surface-hover text-text-secondary"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
