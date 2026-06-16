@@ -247,13 +247,15 @@ export class NIMChatClient {
 
         messages.push({
           role: 'assistant',
-          content: null,
-          tool_calls: toolCalls,
+          content: rawContent,
         });
 
         for (const tc of toolCalls) {
           const result = await onToolCall!(tc);
-          messages.push({ role: 'tool', content: result, tool_call_id: tc.id });
+          messages.push({
+            role: 'user',
+            content: `[Search results]\n${result}\n\n[Use the above search results to answer the user's question. Cite sources by name.]`,
+          });
         }
         continue;
       }

@@ -353,33 +353,23 @@ async function handleApi(req, res) {
       return json(res, 405, { error: 'Method not allowed' });
     }
 
-    // ── Web Search (DuckDuckGo) ──
+    // ── Web Search (SearXNG) ──
     if (parts[1] === 'search') {
       const q = url.searchParams.get('q');
       if (!q) return json(res, 400, { error: 'Missing query' });
 
-      const ddgRes = await fetch('https://html.duckduckgo.com/html/', {
-        method: 'POST',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `q=${encodeURIComponent(q)}&b=kd`,
-      });
-      const html = await ddgRes.text();
-
-      const results = [];
-      const blockRe = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>.*?<a[^>]*class="result__snippet"[^>]*>(.*?)<\/a>/gs;
-      let match;
-      while ((match = blockRe.exec(html)) !== null) {
-        results.push({
-          title: match[2].replace(/<[^>]*>/g, '').trim(),
-          snippet: match[3].replace(/<[^>]*>/g, '').trim(),
-          url: match[1],
-        });
+      const searxngRes = await fetch(`http://searxng:8080/search?q=${encodeURIComponent(q)}&format=json`);
+      if (!searxngRes.ok) {
+        const text = await searxngRes.text();
+        return json(res, 502, { error: `SearXNG returned ${searxngRes.status}: ${text}` });
       }
+
+      const data = await searxngRes.json();
+      const results = (data.results || []).map(r => ({
+        title: r.title || '',
+        snippet: r.content || '',
+        url: r.url || '',
+      }));
 
       return json(res, 200, { results, query: q });
     }

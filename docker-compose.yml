@@ -1,9 +1,31 @@
-version: '3.8'
-
 volumes:
   fynix-data:
+  searxng-data:
+
+configs:
+  searxng-settings:
+    content: |
+      use_default_settings: true
+      search:
+        formats:
+          - html
+          - json
+      server:
+        bind_address: "0.0.0.0"
+        limiter: false
 
 services:
+  searxng:
+    image: searxng/searxng:latest
+    configs:
+      - source: searxng-settings
+        target: /etc/searxng/settings.yml
+    volumes:
+      - searxng-data:/etc/searxng
+    restart: unless-stopped
+    networks:
+      - fynix-net
+
   fynix-chat:
     image: ghcr.io/boc86/fynix-chat:latest
     ports:
@@ -11,3 +33,10 @@ services:
     volumes:
       - fynix-data:/data
     restart: unless-stopped
+    networks:
+      - fynix-net
+    depends_on:
+      - searxng
+
+networks:
+  fynix-net:
