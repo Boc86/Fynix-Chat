@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useUIStore } from '@/stores/chat-store'
 import { usePersonas } from '@/lib/hooks'
 import type { Conversation } from '@/types'
@@ -11,12 +11,23 @@ interface SidebarProps {
   onSelectConversation: (id: string) => void
   onCreateConversation: (title?: string) => Promise<string>
   onDeleteConversation: (id: string) => Promise<void>
+  onRenameConversation: (id: string, title: string) => Promise<void>
 }
 
-export function Sidebar({ open, onClose, conversations, activeConversationId, onSelectConversation, onCreateConversation, onDeleteConversation }: SidebarProps) {
+export function Sidebar({ open, onClose, conversations, activeConversationId, onSelectConversation, onCreateConversation, onDeleteConversation, onRenameConversation }: SidebarProps) {
   const { activePanel, setActivePanel, activePersonaId } = useUIStore()
   const { personas } = usePersonas()
   const [searchQuery, setSearchQuery] = useState('')
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (renamingId && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [renamingId])
 
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) return conversations
@@ -36,6 +47,24 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, on
     } catch (err) {
       console.error('Failed to create conversation', err)
     }
+  }
+
+  const startRename = (conv: Conversation) => {
+    setRenamingId(conv.id)
+    setRenameValue(conv.title)
+  }
+
+  const submitRename = async () => {
+    if (renamingId && renameValue.trim()) {
+      await onRenameConversation(renamingId, renameValue.trim())
+    }
+    setRenamingId(null)
+    setRenameValue('')
+  }
+
+  const cancelRename = () => {
+    setRenamingId(null)
+    setRenameValue('')
   }
 
   const formatDate = (timestamp: number) => {
@@ -112,27 +141,57 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, on
                     ? 'bg-surface-hover text-text-primary'
                     : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
                 }`}
+                onDoubleClick={() => startRename(conv)}
               >
-                <button
-                  onClick={() => onSelectConversation(conv.id)}
-                  className="flex-1 text-left min-w-0"
-                >
-                  <div className="truncate font-medium text-sm">{conv.title}</div>
-                  <div className="text-xs text-text-muted mt-0.5">{formatDate(conv.updatedAt)}</div>
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm('Delete this conversation?')) {
-                      onDeleteConversation(conv.id)
-                    }
-                  }}
-                  className="p-1.5 rounded-md text-text-muted hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                  title="Delete conversation"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
+                {renamingId === conv.id ? (
+                  <input
+                    ref={renameInputRef}
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') submitRename()
+                      if (e.key === 'Escape') cancelRename()
+                    }}
+                    onBlur={submitRename}
+                    className="flex-1 min-w-0 px-1 py-0 bg-surface-tertiary border-none rounded text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <button
+                    onClick={() => onSelectConversation(conv.id)}
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <div className="truncate font-medium text-sm">{conv.title}</div>
+                    <div className="text-xs text-text-muted mt-0.5">{formatDate(conv.updatedAt)}</div>
+                  </button>
+                )}
+                {renamingId !== conv.id && (
+                  <>
+                    <button
+                      onClick={() => startRename(conv)}
+                      className="p-1.5 rounded-md text-text-muted hover:text-accent-primary hover:bg-accent-primary/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                      title="Rename"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this conversation?')) {
+                          onDeleteConversation(conv.id)
+                        }
+                      }}
+                      className="p-1.5 rounded-md text-text-muted hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                      title="Delete conversation"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </>
+                )}
               </div>
             ))}
 
@@ -145,6 +204,18 @@ export function Sidebar({ open, onClose, conversations, activeConversationId, on
         </div>
 
         <div className="p-3 border-t border-surface-tertiary space-y-1">
+          <button
+            onClick={() => setActivePanel('library')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              activePanel === 'library' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            File Library
+          </button>
+
           <button
             onClick={() => setActivePanel('user-profile')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${

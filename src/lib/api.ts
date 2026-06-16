@@ -1,5 +1,5 @@
 import { generateId } from './storage';
-import type { Message, Persona, UserProfile, ApiConfig } from '@/types';
+import type { Message, Persona, UserProfile, ApiConfig, LibraryFile } from '@/types';
 
 const BASE = '';
 
@@ -101,4 +101,33 @@ export async function fetchActiveState(): Promise<{ conversationId: string | nul
 
 export async function setActiveConversation(conversationId: string | null): Promise<void> {
   await request('/api/active-state', { method: 'PUT', body: JSON.stringify({ conversationId }) });
+}
+
+// ── File Library ──
+export async function fetchFiles(): Promise<LibraryFile[]> {
+  return request('/api/files');
+}
+
+export async function uploadFile(file: File): Promise<LibraryFile> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      try {
+        const result = await request('/api/upload', {
+          method: 'POST',
+          body: JSON.stringify({ id: generateId(), name: file.name, type: file.type, size: file.size, data: dataUrl }),
+        });
+        resolve(result);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function deleteFile(id: string): Promise<void> {
+  await request(`/api/files/${id}`, { method: 'DELETE' });
 }

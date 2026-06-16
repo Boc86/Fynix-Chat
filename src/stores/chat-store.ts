@@ -3,6 +3,7 @@ import type { Message, Theme, FontSize, ApiConfig } from '@/types';
 
 interface ChatState {
   currentConversationId: string | null;
+  currentConversationTitle: string;
   messages: Message[];
   isLoading: boolean;
   streamingContent: string;
@@ -10,6 +11,7 @@ interface ChatState {
   editingMessageId: string | null;
 
   setCurrentConversation: (id: string | null) => void;
+  setCurrentConversationTitle: (title: string) => void;
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   updateLastMessage: (content: string) => void;
@@ -24,6 +26,7 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set, get) => ({
   currentConversationId: null,
+  currentConversationTitle: '',
   messages: [],
   isLoading: false,
   streamingContent: '',
@@ -31,6 +34,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   editingMessageId: null,
 
   setCurrentConversation: (id) => set({ currentConversationId: id }),
+
+  setCurrentConversationTitle: (title) => set({ currentConversationTitle: title }),
 
   setMessages: (messages) => set({ messages }),
 
@@ -74,14 +79,14 @@ interface UIState {
   theme: Theme;
   fontSize: FontSize;
   sidebarOpen: boolean;
-  activePanel: 'none' | 'settings' | 'persona' | 'history' | 'user-profile';
+  activePanel: 'none' | 'settings' | 'persona' | 'history' | 'user-profile' | 'library';
   fontSizeValue: number;
   activePersonaId: string;
 
   setTheme: (theme: Theme) => void;
   setFontSize: (size: FontSize) => void;
   setSidebarOpen: (open: boolean) => void;
-  setActivePanel: (panel: 'none' | 'settings' | 'persona' | 'history' | 'user-profile') => void;
+  setActivePanel: (panel: 'none' | 'settings' | 'persona' | 'history' | 'user-profile' | 'library') => void;
   toggleSidebar: () => void;
   closeSidebar: () => void;
   setActivePersonaId: (id: string) => void;

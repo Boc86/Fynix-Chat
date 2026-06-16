@@ -9,6 +9,8 @@ import { getDb, get, query, run } from './server/db.js';
 const PORT = 3000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, 'dist');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -198,6 +200,78 @@ async function handleApi(req, res) {
       return json(res, 405, { error: 'Method not allowed' });
     }
 
+    // ── Upload ──
+    if (parts[1] === 'upload' && parts.length === 2 && method === 'POST') {
+      const body = await readBody(req);
+      if (!body.data || !body.name) {
+        return json(res, 400, { error: 'Missing data or name' });
+      }
+
+      const matches = body.data.match(/^data:(.+);base64,(.+)$/);
+      if (!matches) {
+        return json(res, 400, { error: 'Invalid data URL format' });
+      }
+
+      const mimeType = matches[1];
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+      const fileId = body.id || crypto.randomUUID();
+      const safeName = `${fileId}_${body.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const filePath = path.join(UPLOADS_DIR, safeName);
+
+      try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch {}
+      fs.writeFileSync(filePath, buffer);
+
+      const now = Date.now();
+      const fileUrl = `/uploads/${safeName}`;
+      run(`INSERT INTO file_library (id, name, type, size, url, created_at)
+        VALUES (@id, @name, @type, @size, @url, @createdAt)`, {
+        id: fileId, name: body.name, type: mimeType,
+        size: buffer.length, url: fileUrl, createdAt: now
+      });
+
+      return json(res, 201, { id: fileId, name: body.name, type: mimeType, size: buffer.length, url: fileUrl, createdAt: now });
+    }
+
+    // ── File Library ──
+    if (parts[1] === 'files') {
+      const id = parts[2];
+
+      if (method === 'GET' && !id) {
+        const rows = query('SELECT * FROM file_library ORDER BY created_at DESC');
+        return json(res, 200, rows);
+      }
+
+      if (method === 'GET' && id) {
+        const row = get('SELECT * FROM file_library WHERE id = @id', { id });
+        return row ? json(res, 200, row) : json(res, 404, { error: 'Not found' });
+      }
+
+      if (method === 'POST' && !id) {
+        const body = await readBody(req);
+        const fileId = body.id || crypto.randomUUID();
+        const now = Date.now();
+        run(`INSERT INTO file_library (id, name, type, size, url, created_at)
+          VALUES (@id, @name, @type, @size, @url, @createdAt)`, {
+          id: fileId, name: body.name || '', type: body.type || '',
+          size: body.size || 0, url: body.url || '', createdAt: now
+        });
+        return json(res, 201, { id: fileId });
+      }
+
+      if (method === 'DELETE' && id) {
+        const file = get('SELECT * FROM file_library WHERE id = @id', { id });
+        if (file && file.url && file.url.startsWith('/uploads/')) {
+          const filePath = path.join(DATA_DIR, file.url.replace('/uploads/', ''));
+          try { fs.unlinkSync(filePath); } catch {}
+        }
+        run('DELETE FROM file_library WHERE id = @id', { id });
+        return json(res, 200, { ok: true });
+      }
+
+      return json(res, 405, { error: 'Method not allowed' });
+    }
+
     // ── API Configs ──
     if (parts[1] === 'configs') {
       const id = parts[2];
@@ -294,6 +368,23 @@ function safeParse(str) {
 
 function serveStatic(req, res) {
   const url = req.url === '/' ? '/index.html' : req.url;
+
+  if (url.startsWith('/uploads/')) {
+    const filePath = path.join(UPLOADS_DIR, url.replace('/uploads/', ''));
+    if (!filePath.startsWith(UPLOADS_DIR)) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    fs.readFile(filePath, (err, data) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      const ext = path.extname(filePath);
+      res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+      res.end(data);
+    });
+    return;
+  }
+
   const filePath = path.join(DIST, url);
 
   if (!filePath.startsWith(DIST)) {

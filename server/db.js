@@ -73,6 +73,15 @@ function initSchema() {
       conversation_id TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS file_library (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT '',
+      size INTEGER NOT NULL DEFAULT 0,
+      url TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, timestamp);
   `);
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Message, Conversation, Persona, UserProfile, ApiConfig } from '@/types';
+import type { Message, Conversation, Persona, UserProfile, ApiConfig, LibraryFile } from '@/types';
 import * as api from '@/lib/api';
 
 // ── Conversations ──
@@ -212,4 +212,36 @@ export function useApiConfigs() {
     deleteApiConfig,
     setDefaultConfig
   };
+}
+
+// ── File Library ──
+export function useFileLibrary() {
+  const [files, setFiles] = useState<LibraryFile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const list = await api.fetchFiles();
+      setFiles(list);
+    } catch (err) {
+      console.error('Failed to load files', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh().finally(() => setLoading(false));
+  }, [refresh]);
+
+  const addFile = useCallback(async (file: File): Promise<LibraryFile> => {
+    const result = await api.uploadFile(file);
+    await refresh();
+    return result;
+  }, [refresh]);
+
+  const removeFile = useCallback(async (id: string) => {
+    await api.deleteFile(id);
+    await refresh();
+  }, [refresh]);
+
+  return { files, loading, addFile, removeFile, refresh };
 }

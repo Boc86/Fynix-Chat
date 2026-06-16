@@ -1,8 +1,13 @@
 version: '3.8'
 
+volumes:
+  fynix-data:
+
 services:
   fynix-chat:
     image: ghcr.io/boc86/fynix-chat:latest
     ports:
       - "3000:3000"
+    volumes:
+      - fynix-data:/data
     restart: unless-stopped

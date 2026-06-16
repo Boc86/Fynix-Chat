@@ -16,7 +16,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function ChatView({ onCreateConversation }: { onCreateConversation?: (title?: string) => Promise<string> }) {
+export function ChatView({ onCreateConversation, onRenameConversation }: { onCreateConversation?: (title?: string) => Promise<string>; onRenameConversation?: (id: string, title: string) => Promise<void> }) {
   const {
     messages,
     isLoading,
@@ -26,6 +26,7 @@ export function ChatView({ onCreateConversation }: { onCreateConversation?: (tit
     clearStreamingContent,
     setAbortController,
     currentConversationId,
+    currentConversationTitle,
     editingMessageId,
     setEditingMessage,
     clearEditingMessage,
@@ -241,13 +242,24 @@ export function ChatView({ onCreateConversation }: { onCreateConversation?: (tit
       clearStreamingContent()
 
       let convId = currentConversationId
+      const wasNewConversation = !convId
       if (!convId && onCreateConversation) {
         convId = await onCreateConversation()
         setCurrentConversation(convId)
       }
       if (convId) {
         const finalMessages = useChatStore.getState().messages
-        await updateConversation(convId, { messages: finalMessages })
+
+        if (wasNewConversation && !editingMessageId) {
+          const title = userContent.slice(0, 80) || 'New Chat'
+          await updateConversation(convId, { title, messages: finalMessages })
+          useChatStore.getState().setCurrentConversationTitle(title)
+          if (onRenameConversation) {
+            await onRenameConversation(convId, title)
+          }
+        } else {
+          await updateConversation(convId, { messages: finalMessages })
+        }
       }
     }
   }
@@ -273,7 +285,7 @@ export function ChatView({ onCreateConversation }: { onCreateConversation?: (tit
 
         <div className="flex-1 min-w-0">
           <h2 className="font-medium text-text-primary truncate">
-            {messages.length === 0 ? 'New Chat' : messages[0]?.content.slice(0, 50) || 'Chat'}
+            {currentConversationTitle || 'New Chat'}
           </h2>
           {activePersona && (
             <p className="text-xs text-text-muted truncate">{activePersona.name}</p>

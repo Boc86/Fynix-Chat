@@ -6,12 +6,13 @@ import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
 import { PersonaPanel } from './components/PersonaPanel'
 import { UserProfilePanel } from './components/UserProfilePanel'
+import { LibraryPanel } from './components/LibraryPanel'
 import type { Theme } from './types'
 
 export function App() {
   const { theme, setTheme, sidebarOpen, activePanel, closeSidebar } = useUIStore()
-  const { setMessages, setCurrentConversation } = useChatStore()
-  const { conversations, activeConversationId, setActiveConversation, getConversation, createConversation, deleteConversation } = useConversations()
+  const { setMessages, setCurrentConversation, setCurrentConversationTitle } = useChatStore()
+  const { conversations, activeConversationId, setActiveConversation, getConversation, createConversation, deleteConversation, updateConversation } = useConversations()
   const { preferences } = usePreferences()
 
   useEffect(() => {
@@ -28,14 +29,20 @@ export function App() {
   useEffect(() => {
     if (activeConversationId) {
       setCurrentConversation(activeConversationId)
+      const conv = conversations.find(c => c.id === activeConversationId)
+      if (conv) setCurrentConversationTitle(conv.title)
       getConversation(activeConversationId).then(conv => {
-        if (conv) setMessages(conv.messages)
+        if (conv) {
+          setMessages(conv.messages)
+          setCurrentConversationTitle(conv.title)
+        }
       })
     } else {
       setMessages([])
       setCurrentConversation(null)
+      setCurrentConversationTitle('')
     }
-  }, [activeConversationId, getConversation, setMessages, setCurrentConversation])
+  }, [activeConversationId, getConversation, setMessages, setCurrentConversation, setCurrentConversationTitle, conversations])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -61,6 +68,13 @@ export function App() {
     await deleteConversation(id)
   }, [deleteConversation])
 
+  const handleRenameConversation = useCallback(async (id: string, title: string) => {
+    await updateConversation(id, { title })
+    if (id === useChatStore.getState().currentConversationId) {
+      setCurrentConversationTitle(title)
+    }
+  }, [updateConversation, setCurrentConversationTitle])
+
   const renderPanel = () => {
     switch (activePanel) {
       case 'settings':
@@ -69,6 +83,8 @@ export function App() {
         return <PersonaPanel />
       case 'user-profile':
         return <UserProfilePanel />
+      case 'library':
+        return <LibraryPanel />
       default:
         return null
     }
@@ -84,10 +100,14 @@ export function App() {
         onSelectConversation={handleSelectConversation}
         onCreateConversation={handleCreateConversation}
         onDeleteConversation={handleDeleteConversation}
+        onRenameConversation={handleRenameConversation}
       />
 
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        <ChatView onCreateConversation={handleCreateConversation} />
+        <ChatView
+          onCreateConversation={handleCreateConversation}
+          onRenameConversation={handleRenameConversation}
+        />
       </main>
 
       {activePanel !== 'none' && (

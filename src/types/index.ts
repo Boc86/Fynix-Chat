@@ -113,5 +113,14 @@ export interface NIMStreamChunk {
   }[];
 }
 
+export interface LibraryFile {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  url: string;
+  createdAt: number;
+}
+
 export type Theme = 'light' | 'dark' | 'system';
 export type FontSize = 'small' | 'medium' | 'large';
