@@ -189,7 +189,7 @@ export class NIMChatClient {
 
         messages.push({
           role: 'assistant',
-          content: choice.message?.content || '',
+          content: null,
           tool_calls: toolCalls,
         });
 
