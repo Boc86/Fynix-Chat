@@ -1,4 +1,4 @@
-import type { NIMChatCompletionRequest, NIMStreamChunk, Message, ContentBlock, ToolDefinition, ToolCall } from '@/types';
+import type { NIMChatCompletionRequest, NIMStreamChunk, Message, ContentBlock } from '@/types';
 import { selectMessagesForContext } from './context-truncation';
 
 export class NIMChatClient {
@@ -51,8 +51,6 @@ export class NIMChatClient {
         result.push({ role: 'user', content });
       } else if (msg.role === 'assistant') {
         result.push({ role: 'assistant', content: msg.content });
-      } else if ((msg as any).role === 'tool') {
-        result.push({ role: 'tool', content: msg.content, tool_call_id: (msg as any).toolCallId });
       }
     }
 
@@ -96,14 +94,12 @@ export class NIMChatClient {
       onComplete?: () => void;
       onError?: (error: Error) => void;
       abortSignal?: AbortSignal;
-      tools?: ToolDefinition[];
-      onToolCall?: (toolCall: ToolCall) => Promise<string>;
     }
   ): Promise<string> {
     const {
       systemPrompt = '', userProfileText = '', temperature,
       maxTokens = 2048, stream, onChunk, onComplete, onError,
-      abortSignal, tools, onToolCall
+      abortSignal
     } = options;
 
     (this as any)._abortSignal = abortSignal;
@@ -115,15 +111,7 @@ export class NIMChatClient {
 
       const apiMessages = this.convertMessages(truncatedMessages, systemPrompt, userProfileText);
 
-      if (!tools || tools.length === 0) {
-        return this.singleRound(apiMessages, { model: this.model, temperature, max_tokens: maxTokens }, stream ?? false, onChunk, onComplete);
-      }
-
-      try {
-        return await this.toolLoop(apiMessages, { model: this.model, temperature, max_tokens: maxTokens, tools }, stream ?? false, onChunk, onComplete, onToolCall!);
-      } catch {
-        return this.singleRound(apiMessages, { model: this.model, temperature, max_tokens: maxTokens }, stream ?? false, onChunk, onComplete);
-      }
+      return this.singleRound(apiMessages, { model: this.model, temperature, max_tokens: maxTokens }, stream ?? false, onChunk, onComplete);
     } catch (err) {
       if (err instanceof TypeError && (err.message.includes('NetworkError') || err.message.includes('Failed to fetch'))) {
         const msg = `Cannot reach ${this.baseUrl}. Ensure the app is served through the Docker server (port 3000).`;
@@ -158,125 +146,6 @@ export class NIMChatClient {
     const content = data.choices?.[0]?.message?.content || '';
     onComplete?.();
     return content;
-  }
-
-  private parseDSMLToolCalls(content: string): { toolCalls: ToolCall[]; cleanedContent: string } {
-    const toolCalls: ToolCall[] = [];
-    // Handle both <DSML｜invoke> and <｜DSML｜invoke> (DeepSeek variations)
-    const regex = /<(?:｜)?DSML｜invoke name="([^"]+)"[^>]*>\s*([\s\S]*?)<\/(?:｜)?DSML｜invoke>/g;
-    let cleaned = content;
-    let match;
-
-    while ((match = regex.exec(content)) !== null) {
-      const name = match[1] || '';
-      const paramsBody = match[2] || '';
-      const args: Record<string, string> = {};
-      const paramRegex = /<(?:｜)?DSML｜parameter name="([^"]+)"[^>]*>([\s\S]*?)<\/(?:｜)?DSML｜parameter>/g;
-      let pm;
-      while ((pm = paramRegex.exec(paramsBody)) !== null) {
-        const key = pm[1];
-        const val = pm[2];
-        if (key) args[key] = val || '';
-      }
-      toolCalls.push({
-        id: `dsml_${toolCalls.length}_${Date.now()}`,
-        type: 'function',
-        function: { name, arguments: JSON.stringify(args) },
-      });
-      cleaned = cleaned.replace(match[0], '').trim();
-    }
-
-    // Also strip any <(?:)?DSML｜tool_calls> wrapper tags
-    cleaned = cleaned.replace(/<(?:｜)?DSML｜tool_calls>/g, '').replace(/<\/(?:｜)?DSML｜tool_calls>/g, '').trim();
-
-    return { toolCalls, cleanedContent: cleaned };
-  }
-
-  private async toolLoop(
-    apiMessages: NIMChatCompletionRequest['messages'],
-    base: { model: string; temperature?: number; max_tokens?: number; tools: ToolDefinition[] },
-    wantsStream: boolean,
-    onChunk?: (content: string) => void,
-    onComplete?: () => void,
-    onToolCall?: (tc: ToolCall) => Promise<string>
-  ): Promise<string> {
-    let messages = [...apiMessages];
-    let accumulatedContent = '';
-
-    for (let round = 0; round < 10; round++) {
-      const req: NIMChatCompletionRequest = {
-        model: base.model,
-        messages,
-        temperature: base.temperature,
-        max_tokens: base.max_tokens,
-        stream: false,
-      };
-      if (round === 0) req.tools = base.tools;
-
-      const response = await this.post(req);
-      const data = await response.json();
-      const choice = data.choices?.[0];
-      if (!choice) throw new Error('No response from API');
-
-      let rawContent = choice.message?.content || '';
-      const toolCalls: ToolCall[] | undefined = choice.message?.tool_calls;
-
-      const hasDSML = rawContent.includes('<DSML｜') || rawContent.includes('<｜DSML｜');
-      const parsedDSML = hasDSML ? this.parseDSMLToolCalls(rawContent) : null;
-
-      if (parsedDSML && parsedDSML.toolCalls.length > 0) {
-        accumulatedContent += parsedDSML.cleanedContent;
-
-        messages.push({
-          role: 'assistant',
-          content: parsedDSML.cleanedContent || null,
-        });
-
-        for (const tc of parsedDSML.toolCalls) {
-          const result = await onToolCall!(tc);
-          messages.push({
-            role: 'user',
-            content: `[Search results]\n${result}\n\n[Use the above search results to answer the user's question. Cite sources by name.]`,
-          });
-        }
-        continue;
-      }
-
-      if (toolCalls && toolCalls.length > 0) {
-        accumulatedContent += rawContent;
-
-        messages.push({
-          role: 'assistant',
-          content: rawContent,
-        });
-
-        for (const tc of toolCalls) {
-          const result = await onToolCall!(tc);
-          messages.push({
-            role: 'user',
-            content: `[Search results]\n${result}\n\n[Use the above search results to answer the user's question. Cite sources by name.]`,
-          });
-        }
-        continue;
-      }
-
-      accumulatedContent += rawContent;
-      const finalContent = accumulatedContent;
-
-      if (wantsStream && onChunk) {
-        let pos = 0;
-        while (pos < finalContent.length) {
-          const end = Math.min(pos + 15, finalContent.length);
-          onChunk(finalContent.slice(pos, end));
-          pos = end;
-        }
-      }
-
-      onComplete?.();
-      return finalContent;
-    }
-
-    throw new Error('Tool call loop exceeded max rounds');
   }
 
   private async readStream(

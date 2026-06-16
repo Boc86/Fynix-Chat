@@ -8,7 +8,7 @@ import { updateConversation, fetchConversation, searchWeb } from '@/lib/api'
 import { useToastStore } from '@/stores/toast-store'
 import { InputPill } from './InputPill'
 import { MessageBlock } from './MessageBlock'
-import type { Message, ToolDefinition, ToolCall } from '@/types'
+import type { Message } from '@/types'
 
 export function ChatView({ onCreateConversation, onRenameConversation }: { onCreateConversation?: (title?: string) => Promise<string>; onRenameConversation?: (id: string, title: string) => Promise<void> }) {
   const {
@@ -165,43 +165,29 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     const activeModel = searchEnabled && apiConfig.searchModel ? apiConfig.searchModel : apiConfig.model
     const client = createNIMClient(apiConfig.apiKey, apiConfig.baseUrl, activeModel)
 
-    const submitMessages = updatedMessages.slice(0, -1)
-
     const userProfileText = profile ? buildUserProfileText(profile) : ''
 
-    const tools: ToolDefinition[] = searchEnabled ? [{
-      type: 'function',
-      function: {
-        name: 'web_search',
-        description: 'Search the web for current, up-to-date information. Use this when you need recent data, news, or facts beyond your knowledge cutoff.',
-        parameters: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: 'The search query'
-            }
-          },
-          required: ['query']
-        }
-      }
-    }] : []
-
-    const onToolCall = async (tc: ToolCall): Promise<string> => {
-      if (tc.function.name !== 'web_search') return ''
+    // Proactive search: fetch results before sending to model
+    let searchContext = ''
+    if (searchEnabled) {
       try {
-        const args = JSON.parse(tc.function.arguments)
-        const q = args.query || text.trim()
-        const res = await searchWeb(q)
-        if (!res.results || res.results.length === 0) return 'No results found.'
-        return res.results.map((r, i) =>
-          `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.snippet}`
-        ).join('\n\n')
+        const res = await searchWeb(text.trim())
+        if (res.results && res.results.length > 0) {
+          searchContext = '[Web Search Results]\n' + res.results.map((r, i) =>
+            `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.snippet}`
+          ).join('\n\n')
+        }
       } catch (err) {
-        console.error('Tool execution failed:', err)
-        const msg = err instanceof Error ? err.message : 'unknown error'
-        return `Search failed: ${msg}`
+        console.error('Proactive search failed:', err)
       }
+    }
+
+    let submitMessages = updatedMessages.slice(0, -1)
+    if (searchContext) {
+      submitMessages = [
+        { role: 'user', content: searchContext + '\n\n[Use the above search results to answer the user\'s question. Cite sources by name.]', id: generateId(), timestamp: Date.now() },
+        ...submitMessages,
+      ]
     }
 
     const chatOptions = {
@@ -210,8 +196,6 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
       temperature: persona.temperature,
       maxTokens: persona.maxTokens,
       abortSignal: abortController.signal,
-      tools: tools.length > 0 ? tools : undefined,
-      onToolCall: tools.length > 0 ? onToolCall : undefined,
       onError: (err: Error) => {
         console.error('Chat error:', err)
         setErrorOnLastMessage(err.message)
