@@ -166,6 +166,8 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     updatedMessages = [...updatedMessages, assistantMessage]
     setMessages(updatedMessages)
 
+    let finalMessages: Message[] = updatedMessages
+
     const abortController = new AbortController()
     setAbortController(abortController)
 
@@ -194,6 +196,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
               if (msg) {
                 updated[lastIndex] = { ...msg, content: msg.content + chunk }
                 useChatStore.getState().setMessages(updated)
+                finalMessages = updated
               }
             }
           },
@@ -207,6 +210,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
               if (msg) {
                 updated[lastIndex] = { ...msg, content: `Error: ${err.message}` }
                 useChatStore.getState().setMessages(updated)
+                finalMessages = updated
               }
             }
           }
@@ -229,6 +233,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
               if (msg) {
                 updated[lastIndex] = { ...msg, content: `Error: ${err.message}` }
                 useChatStore.getState().setMessages(updated)
+                finalMessages = updated
               }
             }
           }
@@ -241,6 +246,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
           if (msg) {
             updated[lastIndex] = { ...msg, content: response }
             useChatStore.getState().setMessages(updated)
+            finalMessages = updated
           }
         }
       }
@@ -253,13 +259,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
       setAbortController(null)
       clearStreamingContent()
 
-      if (isNewConversation) {
-        if (convId) {
-          const finalMessages = useChatStore.getState().messages
-          await updateConversation(convId, { messages: finalMessages })
-        }
-      } else if (convId) {
-        const finalMessages = useChatStore.getState().messages
+      if (convId) {
         await updateConversation(convId, { messages: finalMessages })
       }
     }
