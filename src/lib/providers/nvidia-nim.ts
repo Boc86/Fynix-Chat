@@ -158,7 +158,8 @@ export class NIMChatClient {
 
   private parseDSMLToolCalls(content: string): { toolCalls: ToolCall[]; cleanedContent: string } {
     const toolCalls: ToolCall[] = [];
-    const regex = /<DSML｜invoke name="([^"]+)">\s*([\s\S]*?)<\/DSML｜invoke>/g;
+    // Handle both <DSML｜invoke> and <｜DSML｜invoke> (DeepSeek variations)
+    const regex = /<(?:｜)?DSML｜invoke name="([^"]+)"[^>]*>\s*([\s\S]*?)<\/(?:｜)?DSML｜invoke>/g;
     let cleaned = content;
     let match;
 
@@ -166,7 +167,7 @@ export class NIMChatClient {
       const name = match[1] || '';
       const paramsBody = match[2] || '';
       const args: Record<string, string> = {};
-      const paramRegex = /<DSML｜parameter name="([^"]+)"[^>]*>([\s\S]*?)<\/DSML｜parameter>/g;
+      const paramRegex = /<(?:｜)?DSML｜parameter name="([^"]+)"[^>]*>([\s\S]*?)<\/(?:｜)?DSML｜parameter>/g;
       let pm;
       while ((pm = paramRegex.exec(paramsBody)) !== null) {
         const key = pm[1];
@@ -180,6 +181,9 @@ export class NIMChatClient {
       });
       cleaned = cleaned.replace(match[0], '').trim();
     }
+
+    // Also strip any <(?:)?DSML｜tool_calls> wrapper tags
+    cleaned = cleaned.replace(/<(?:｜)?DSML｜tool_calls>/g, '').replace(/<\/(?:｜)?DSML｜tool_calls>/g, '').trim();
 
     return { toolCalls, cleanedContent: cleaned };
   }
@@ -211,14 +215,27 @@ export class NIMChatClient {
       if (!choice) throw new Error('No response from API');
 
       let rawContent = choice.message?.content || '';
-      let toolCalls: ToolCall[] | undefined = choice.message?.tool_calls;
+      const toolCalls: ToolCall[] | undefined = choice.message?.tool_calls;
 
-      if (!toolCalls && rawContent.includes('<DSML｜invoke')) {
-        const parsed = this.parseDSMLToolCalls(rawContent);
-        toolCalls = parsed.toolCalls.length > 0 ? parsed.toolCalls : undefined;
-        if (toolCalls && rawContent !== parsed.cleanedContent) {
-          rawContent = parsed.cleanedContent;
+      const hasDSML = rawContent.includes('<DSML｜') || rawContent.includes('<｜DSML｜');
+      const parsedDSML = hasDSML ? this.parseDSMLToolCalls(rawContent) : null;
+
+      if (parsedDSML && parsedDSML.toolCalls.length > 0) {
+        accumulatedContent += parsedDSML.cleanedContent;
+
+        messages.push({
+          role: 'assistant',
+          content: parsedDSML.cleanedContent || null,
+        });
+
+        for (const tc of parsedDSML.toolCalls) {
+          const result = await onToolCall!(tc);
+          messages.push({
+            role: 'user',
+            content: `[Search results]\n${result}\n\n[Use the above search results to answer the user's question. Cite sources by name.]`,
+          });
         }
+        continue;
       }
 
       if (toolCalls && toolCalls.length > 0) {
