@@ -157,7 +157,7 @@ async function handleApi(req, res) {
         const fields = [];
         const params = { id };
         for (const [key, value] of Object.entries(body)) {
-          if (key === 'id') continue;
+          if (key === 'id' || key === 'messages') continue;
           const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
           fields.push(`${col} = @${key}`);
           params[key] = value;
