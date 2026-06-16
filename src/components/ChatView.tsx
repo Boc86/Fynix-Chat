@@ -141,6 +141,8 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     const isNewConversation = !currentConversationId
     let convId = currentConversationId
     if (isNewConversation && onCreateConversation) {
+      setMessages(updatedMessages)
+      setIsLoading(true)
       convId = await onCreateConversation()
       setCurrentConversation(convId)
       if (onRenameConversation) {
@@ -166,7 +168,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     updatedMessages = [...updatedMessages, assistantMessage]
     setMessages(updatedMessages)
 
-    let finalMessages: Message[] = updatedMessages
+    let assistantContent = ''
 
     const abortController = new AbortController()
     setAbortController(abortController)
@@ -187,6 +189,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
           stream: true,
           abortSignal: abortController.signal,
           onChunk: (chunk) => {
+            assistantContent += chunk
             setStreamingContent(chunk)
             const msgs = useChatStore.getState().messages
             const lastIndex = msgs.length - 1
@@ -196,12 +199,12 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
               if (msg) {
                 updated[lastIndex] = { ...msg, content: msg.content + chunk }
                 useChatStore.getState().setMessages(updated)
-                finalMessages = updated
               }
             }
           },
           onError: (err) => {
             console.error('Chat error:', err)
+            assistantContent = `Error: ${err.message}`
             const msgs = useChatStore.getState().messages
             const lastIndex = msgs.length - 1
             if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
@@ -210,7 +213,6 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
               if (msg) {
                 updated[lastIndex] = { ...msg, content: `Error: ${err.message}` }
                 useChatStore.getState().setMessages(updated)
-                finalMessages = updated
               }
             }
           }
@@ -225,6 +227,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
           abortSignal: abortController.signal,
           onError: (err) => {
             console.error('Chat error:', err)
+            assistantContent = `Error: ${err.message}`
             const msgs = useChatStore.getState().messages
             const lastIndex = msgs.length - 1
             if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
@@ -233,11 +236,11 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
               if (msg) {
                 updated[lastIndex] = { ...msg, content: `Error: ${err.message}` }
                 useChatStore.getState().setMessages(updated)
-                finalMessages = updated
               }
             }
           }
         })
+        assistantContent = response
         const msgs = useChatStore.getState().messages
         const lastIndex = msgs.length - 1
         if (lastIndex >= 0 && msgs[lastIndex]?.role === 'assistant') {
@@ -246,7 +249,6 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
           if (msg) {
             updated[lastIndex] = { ...msg, content: response }
             useChatStore.getState().setMessages(updated)
-            finalMessages = updated
           }
         }
       }
@@ -260,6 +262,10 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
       clearStreamingContent()
 
       if (convId) {
+        const finalMessages: Message[] = [
+          ...updatedMessages.slice(0, -1),
+          { ...assistantMessage, content: assistantContent }
+        ]
         await updateConversation(convId, { messages: finalMessages })
       }
     }

@@ -32,7 +32,7 @@ export function App() {
       const conv = conversations.find(c => c.id === activeConversationId)
       if (conv) setCurrentConversationTitle(conv.title)
       getConversation(activeConversationId).then(conv => {
-        if (conv) {
+        if (conv && !useChatStore.getState().isLoading) {
           setMessages(conv.messages)
           setCurrentConversationTitle(conv.title)
         }
