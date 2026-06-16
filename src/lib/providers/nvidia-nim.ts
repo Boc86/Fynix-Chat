@@ -29,28 +29,44 @@ export class NIMChatClient {
     const systemParts: string[] = [];
     if (systemPrompt) systemParts.push(systemPrompt);
     if (userProfileText) systemParts.push(`\n---\nUser profile:\n${userProfileText}`);
+    const systemContext = systemParts.join('\n\n');
 
-    if (systemParts.length > 0) {
-      result.push({ role: 'system', content: systemParts.join('\n') });
-    }
+    let contextInjected = false;
 
     for (const msg of messages) {
       if (msg.role === 'user') {
         const imageAttachments = msg.attachments?.filter(att => att.type === 'image') || [];
 
         let content: string | ContentBlock[];
-        if (imageAttachments.length > 0) {
-          const blocks: ContentBlock[] = [];
-          if (msg.content) {
-            blocks.push({ type: 'text', text: msg.content });
+
+        if (systemContext && !contextInjected) {
+          contextInjected = true;
+          if (imageAttachments.length > 0) {
+            const blocks: ContentBlock[] = [
+              { type: 'text', text: `${systemContext}\n\n${msg.content}` }
+            ];
+            blocks.push(...imageAttachments.map(att => ({
+              type: 'image_url' as const,
+              image_url: { url: att.url }
+            })));
+            content = blocks;
+          } else {
+            content = `${systemContext}\n\n${msg.content}`;
           }
-          blocks.push(...imageAttachments.map(att => ({
-            type: 'image_url' as const,
-            image_url: { url: att.url }
-          })));
-          content = blocks;
         } else {
-          content = msg.content;
+          if (imageAttachments.length > 0) {
+            const blocks: ContentBlock[] = [];
+            if (msg.content) {
+              blocks.push({ type: 'text', text: msg.content });
+            }
+            blocks.push(...imageAttachments.map(att => ({
+              type: 'image_url' as const,
+              image_url: { url: att.url }
+            })));
+            content = blocks;
+          } else {
+            content = msg.content;
+          }
         }
 
         result.push({ role: 'user', content });
