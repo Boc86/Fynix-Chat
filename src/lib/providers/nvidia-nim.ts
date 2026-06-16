@@ -1,4 +1,4 @@
-import type { NIMChatCompletionRequest, NIMStreamChunk, Message, ContentBlock } from '@/types';
+import type { NIMChatCompletionRequest, NIMStreamChunk, Message, ContentBlock, ToolDefinition, ToolCall } from '@/types';
 import { selectMessagesForContext } from './context-truncation';
 
 export class NIMChatClient {
@@ -11,9 +11,7 @@ export class NIMChatClient {
     this.apiKey = apiKey;
     let url = baseUrl.trim().replace(/\/$/, '');
     url = url.replace(/\/chat\/completions$/, '');
-    if (!/^https?:\/\//i.test(url)) {
-      url = 'https://' + url;
-    }
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
     this.baseUrl = url;
     this.model = model;
     this.proxyUrl = proxyUrl || '';
@@ -38,13 +36,10 @@ export class NIMChatClient {
     for (const msg of messages) {
       if (msg.role === 'user') {
         const imageAttachments = msg.attachments?.filter(att => att.type === 'image') || [];
-
         let content: string | ContentBlock[];
         if (imageAttachments.length > 0) {
           const blocks: ContentBlock[] = [];
-          if (msg.content) {
-            blocks.push({ type: 'text', text: msg.content });
-          }
+          if (msg.content) blocks.push({ type: 'text', text: msg.content });
           blocks.push(...imageAttachments.map(att => ({
             type: 'image_url' as const,
             image_url: { url: att.url }
@@ -53,14 +48,40 @@ export class NIMChatClient {
         } else {
           content = msg.content;
         }
-
         result.push({ role: 'user', content });
       } else if (msg.role === 'assistant') {
         result.push({ role: 'assistant', content: msg.content });
+      } else if ((msg as any).role === 'tool') {
+        result.push({ role: 'tool', content: msg.content, tool_call_id: (msg as any).toolCallId });
       }
     }
 
     return result;
+  }
+
+  private async post(request: NIMChatCompletionRequest): Promise<any> {
+    const targetUrl = `${this.baseUrl}/chat/completions`;
+    const url = this.proxyUrl || targetUrl;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this.apiKey}`
+    };
+    if (this.proxyUrl) headers['X-Target-Url'] = targetUrl;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(request),
+      signal: request.stream ? undefined : (this as any)._abortSignal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error ${response.status} for ${targetUrl}: ${errorText}`);
+    }
+
+    return response;
   }
 
   async chat(
@@ -75,92 +96,33 @@ export class NIMChatClient {
       onComplete?: () => void;
       onError?: (error: Error) => void;
       abortSignal?: AbortSignal;
+      tools?: ToolDefinition[];
+      onToolCall?: (toolCall: ToolCall) => Promise<string>;
     }
   ): Promise<string> {
-    const { systemPrompt = '', userProfileText = '', temperature, maxTokens = 2048, stream, onChunk, onComplete, onError, abortSignal } = options;
+    const {
+      systemPrompt = '', userProfileText = '', temperature,
+      maxTokens = 2048, stream, onChunk, onComplete, onError,
+      abortSignal, tools, onToolCall
+    } = options;
 
-    const truncatedMessages = selectMessagesForContext(
-      messages,
-      systemPrompt,
-      userProfileText,
-      maxTokens
-    );
-
-    const request: NIMChatCompletionRequest = {
-      model: this.model,
-      messages: this.convertMessages(truncatedMessages, systemPrompt, userProfileText),
-      temperature,
-      max_tokens: maxTokens,
-      stream: stream ?? false
-    };
-
-    const targetUrl = `${this.baseUrl}/chat/completions`;
-    const url = this.proxyUrl || targetUrl;
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`
-    };
-
-    if (this.proxyUrl) {
-      headers['X-Target-Url'] = targetUrl;
-    }
+    (this as any)._abortSignal = abortSignal;
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(request),
-        signal: abortSignal
-      });
+      const truncatedMessages = selectMessagesForContext(
+        messages, systemPrompt, userProfileText, maxTokens
+      );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API error ${response.status} for ${targetUrl}: ${errorText}`);
+      const apiMessages = this.convertMessages(truncatedMessages, systemPrompt, userProfileText);
+
+      if (!tools || tools.length === 0) {
+        return this.singleRound(apiMessages, { model: this.model, temperature, max_tokens: maxTokens }, stream ?? false, onChunk, onComplete);
       }
 
-      if (stream && onChunk) {
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error('No response body');
-
-        const decoder = new TextDecoder();
-        let fullContent = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n').filter(line => line.trim() !== '' && line.startsWith('data: '));
-
-          for (const line of lines) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-
-            try {
-              const parsed: NIMStreamChunk = JSON.parse(data);
-              const content = parsed.choices[0]?.delta?.content;
-              if (content) {
-                fullContent += content;
-                onChunk(content);
-              }
-            } catch {
-              // Skip malformed JSON lines
-            }
-          }
-        }
-
-        onComplete?.();
-        return fullContent;
-      } else {
-        const data = await response.json();
-        const content = data.choices[0]?.message?.content || '';
-        onComplete?.();
-        return content;
-      }
+      return this.toolLoop(apiMessages, { model: this.model, temperature, max_tokens: maxTokens, tools }, stream ?? false, onChunk, onComplete, onToolCall!);
     } catch (err) {
       if (err instanceof TypeError && (err.message.includes('NetworkError') || err.message.includes('Failed to fetch'))) {
-        const msg = `Cannot reach ${targetUrl}. Ensure the app is served through the Docker server (port 3000).`;
+        const msg = `Cannot reach ${this.baseUrl}. Ensure the app is served through the Docker server (port 3000).`;
         onError?.(new Error(msg));
         throw err;
       }
@@ -169,22 +131,143 @@ export class NIMChatClient {
     }
   }
 
-  async summarizeHistory(
-    messages: Message[],
-    userProfileText: string
+  private async singleRound(
+    apiMessages: NIMChatCompletionRequest['messages'],
+    base: { model: string; temperature?: number; max_tokens?: number },
+    wantsStream: boolean,
+    onChunk?: (content: string) => void,
+    onComplete?: () => void
   ): Promise<string> {
-    const summaryMessages = messages.slice(-20);
-    const summaryRequest = summaryMessages.length > 0 ? summaryMessages : messages;
+    const request: NIMChatCompletionRequest = {
+      ...base,
+      messages: apiMessages,
+      stream: wantsStream,
+    };
 
+    const response = await this.post(request);
+
+    if (wantsStream && onChunk) {
+      return this.readStream(response, onChunk, onComplete);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    onComplete?.();
+    return content;
+  }
+
+  private async toolLoop(
+    apiMessages: NIMChatCompletionRequest['messages'],
+    base: { model: string; temperature?: number; max_tokens?: number; tools: ToolDefinition[] },
+    wantsStream: boolean,
+    onChunk?: (content: string) => void,
+    onComplete?: () => void,
+    onToolCall?: (tc: ToolCall) => Promise<string>
+  ): Promise<string> {
+    let messages = [...apiMessages];
+    let accumulatedContent = '';
+
+    for (let round = 0; round < 10; round++) {
+      const req: NIMChatCompletionRequest = {
+        model: base.model,
+        messages,
+        temperature: base.temperature,
+        max_tokens: base.max_tokens,
+        stream: false,
+      };
+      if (round === 0) req.tools = base.tools;
+
+      const response = await this.post(req);
+      const data = await response.json();
+      const choice = data.choices?.[0];
+      if (!choice) throw new Error('No response from API');
+
+      const toolCalls: ToolCall[] | undefined = choice.message?.tool_calls;
+
+      if (toolCalls && toolCalls.length > 0) {
+        accumulatedContent += choice.message?.content || '';
+
+        messages.push({
+          role: 'assistant',
+          content: choice.message?.content || '',
+          tool_calls: toolCalls,
+        });
+
+        for (const tc of toolCalls) {
+          const result = await onToolCall!(tc);
+          messages.push({ role: 'tool', content: result, tool_call_id: tc.id });
+        }
+        continue;
+      }
+
+      accumulatedContent += choice.message?.content || '';
+      const finalContent = accumulatedContent;
+
+      if (wantsStream && onChunk) {
+        let pos = 0;
+        while (pos < finalContent.length) {
+          const end = Math.min(pos + 15, finalContent.length);
+          onChunk(finalContent.slice(pos, end));
+          pos = end;
+        }
+      }
+
+      onComplete?.();
+      return finalContent;
+    }
+
+    throw new Error('Tool call loop exceeded max rounds');
+  }
+
+  private async readStream(
+    response: Response,
+    onChunk: (content: string) => void,
+    onComplete?: () => void
+  ): Promise<string> {
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let fullContent = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(line => line.trim() !== '' && line.startsWith('data: '));
+
+      for (const line of lines) {
+        const raw = line.slice(6);
+        if (raw === '[DONE]') continue;
+        try {
+          const parsed: NIMStreamChunk = JSON.parse(raw);
+          const content = parsed.choices[0]?.delta?.content;
+          if (content) {
+            fullContent += content;
+            onChunk(content);
+          }
+        } catch {
+          // skip malformed
+        }
+      }
+    }
+
+    onComplete?.();
+    return fullContent;
+  }
+
+  async summarizeHistory(messages: Message[], userProfileText: string): Promise<string> {
+    const slice = messages.slice(-20);
+    const summaryRequest = slice.length > 0 ? slice : messages;
     try {
-      const response = await this.chat(summaryRequest, {
+      return await this.chat(summaryRequest, {
         systemPrompt: 'Summarize the following conversation concisely, preserving key facts, decisions, preferences, and user context. Focus on information needed for future responses.',
         userProfileText,
         temperature: 0.3,
         maxTokens: 512,
         stream: false,
       });
-      return response;
     } catch {
       return '';
     }

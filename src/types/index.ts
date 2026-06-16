@@ -56,9 +56,29 @@ export interface ApiConfig {
   isDefault: boolean;
 }
 
+export interface ToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
 export interface NIMChatMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string | ContentBlock[];
+  tool_call_id?: string;
+  tool_calls?: ToolCall[];
 }
 
 export interface ContentBlock {
@@ -77,6 +97,7 @@ export interface NIMChatCompletionRequest {
   max_tokens?: number;
   top_p?: number;
   stream?: boolean;
+  tools?: ToolDefinition[];
 }
 
 export interface NIMChatCompletionResponse {
@@ -89,6 +110,7 @@ export interface NIMChatCompletionResponse {
     message: {
       role: string;
       content: string;
+      tool_calls?: ToolCall[];
     };
     finish_reason: string;
   }[];
@@ -108,6 +130,7 @@ export interface NIMStreamChunk {
     index: number;
     delta: {
       content?: string;
+      tool_calls?: ToolCall[];
     };
     finish_reason?: string;
   }[];

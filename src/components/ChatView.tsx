@@ -8,7 +8,7 @@ import { updateConversation, fetchConversation, searchWeb } from '@/lib/api'
 import { useToastStore } from '@/stores/toast-store'
 import { InputPill } from './InputPill'
 import { MessageBlock } from './MessageBlock'
-import type { Message } from '@/types'
+import type { Message, ToolDefinition, ToolCall } from '@/types'
 
 export function ChatView({ onCreateConversation, onRenameConversation }: { onCreateConversation?: (title?: string) => Promise<string>; onRenameConversation?: (id: string, title: string) => Promise<void> }) {
   const {
@@ -166,32 +166,61 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
 
     const submitMessages = updatedMessages.slice(0, -1)
 
-    let userProfileText = profile ? buildUserProfileText(profile) : ''
+    const userProfileText = profile ? buildUserProfileText(profile) : ''
 
-    if (searchEnabled) {
-      try {
-        const searchRes = await searchWeb(text.trim())
-        if (searchRes.results && searchRes.results.length > 0) {
-          const formatted = searchRes.results.map((r, i) =>
-            `${i + 1}. [${r.title}](${r.url})\n   ${r.snippet}`
-          ).join('\n\n')
-          userProfileText += `\n\n---\n\n## LIVE WEB SEARCH RESULTS\n\nYou MUST use these results to answer. They were fetched in real-time from the internet for the query "${text.trim()}". Do NOT say you cannot access live information — these ARE live results.\n\n${formatted}`
+    const tools: ToolDefinition[] = searchEnabled ? [{
+      type: 'function',
+      function: {
+        name: 'web_search',
+        description: 'Search the web for current, up-to-date information. Use this when you need recent data, news, or facts beyond your knowledge cutoff.',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'The search query'
+            }
+          },
+          required: ['query']
         }
+      }
+    }] : []
+
+    const onToolCall = async (tc: ToolCall): Promise<string> => {
+      if (tc.function.name !== 'web_search') return ''
+      try {
+        const args = JSON.parse(tc.function.arguments)
+        const q = args.query || text.trim()
+        const res = await searchWeb(q)
+        if (!res.results || res.results.length === 0) return 'No results found.'
+        return res.results.map((r, i) =>
+          `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.snippet}`
+        ).join('\n\n')
       } catch (err) {
-        console.error('Web search failed:', err)
-        addToast('Web search failed, continuing without results', 'info')
+        console.error('Tool execution failed:', err)
+        return 'Search failed.'
+      }
+    }
+
+    const chatOptions = {
+      systemPrompt: persona.systemPrompt,
+      userProfileText,
+      temperature: persona.temperature,
+      maxTokens: persona.maxTokens,
+      abortSignal: abortController.signal,
+      tools: tools.length > 0 ? tools : undefined,
+      onToolCall: tools.length > 0 ? onToolCall : undefined,
+      onError: (err: Error) => {
+        console.error('Chat error:', err)
+        setErrorOnLastMessage(err.message)
       }
     }
 
     try {
       if (preferences.streaming) {
         await client.chat(submitMessages, {
-          systemPrompt: persona.systemPrompt,
-          userProfileText,
-          temperature: persona.temperature,
-          maxTokens: persona.maxTokens,
+          ...chatOptions,
           stream: true,
-          abortSignal: abortController.signal,
           onChunk: (chunk) => {
             assistantContent += chunk
             const msgs = useChatStore.getState().messages
@@ -205,23 +234,11 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
               }
             }
           },
-          onError: (err) => {
-            console.error('Chat error:', err)
-            setErrorOnLastMessage(err.message)
-          }
         })
       } else {
         const response = await client.chat(submitMessages, {
-          systemPrompt: persona.systemPrompt,
-          userProfileText,
-          temperature: persona.temperature,
-          maxTokens: persona.maxTokens,
+          ...chatOptions,
           stream: false,
-          abortSignal: abortController.signal,
-          onError: (err) => {
-            console.error('Chat error:', err)
-            setErrorOnLastMessage(err.message)
-          }
         })
         assistantContent = response
         const msgs = useChatStore.getState().messages
