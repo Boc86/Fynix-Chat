@@ -175,7 +175,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
           const formatted = searchRes.results.map((r, i) =>
             `${i + 1}. [${r.title}](${r.url})\n   ${r.snippet}`
           ).join('\n\n')
-          userProfileText += `\n\n---\n\nWeb search results for "${text.trim()}":\n\n${formatted}`
+          userProfileText += `\n\n---\n\n## LIVE WEB SEARCH RESULTS\n\nYou MUST use these results to answer. They were fetched in real-time from the internet for the query "${text.trim()}". Do NOT say you cannot access live information — these ARE live results.\n\n${formatted}`
         }
       } catch (err) {
         console.error('Web search failed:', err)
