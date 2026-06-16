@@ -13,7 +13,7 @@ export function selectMessagesForContext(
   maxResponseTokens: number,
   maxContextTokens: number = DEFAULT_MAX_CONTEXT_TOKENS
 ): Message[] {
-  const systemTokens = estimateTokens(systemPrompt) + estimateTokens(userProfileText);
+  const systemTokens = estimateTokens(systemPrompt) + estimateTokens(userProfileText) + 20;
   const available = maxContextTokens - systemTokens - maxResponseTokens;
 
   if (available <= 0) return [];

@@ -138,7 +138,19 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
       updatedMessages = [...messages, userMessage]
     }
 
-    setMessages(updatedMessages)
+    const isNewConversation = !currentConversationId
+    let convId = currentConversationId
+    if (isNewConversation && onCreateConversation) {
+      convId = await onCreateConversation()
+      setCurrentConversation(convId)
+      if (onRenameConversation) {
+        const title = userContent.slice(0, 80) || 'New Chat'
+        await updateConversation(convId, { title, messages: updatedMessages })
+        useChatStore.getState().setCurrentConversationTitle(title)
+        await onRenameConversation(convId, title)
+      }
+    }
+
     setInput('')
     setAttachedFiles([])
     clearStreamingContent()
@@ -241,25 +253,14 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
       setAbortController(null)
       clearStreamingContent()
 
-      let convId = currentConversationId
-      const wasNewConversation = !convId
-      if (!convId && onCreateConversation) {
-        convId = await onCreateConversation()
-        setCurrentConversation(convId)
-      }
-      if (convId) {
-        const finalMessages = useChatStore.getState().messages
-
-        if (wasNewConversation && !editingMessageId) {
-          const title = userContent.slice(0, 80) || 'New Chat'
-          await updateConversation(convId, { title, messages: finalMessages })
-          useChatStore.getState().setCurrentConversationTitle(title)
-          if (onRenameConversation) {
-            await onRenameConversation(convId, title)
-          }
-        } else {
+      if (isNewConversation) {
+        if (convId) {
+          const finalMessages = useChatStore.getState().messages
           await updateConversation(convId, { messages: finalMessages })
         }
+      } else if (convId) {
+        const finalMessages = useChatStore.getState().messages
+        await updateConversation(convId, { messages: finalMessages })
       }
     }
   }
