@@ -47,12 +47,6 @@ export function selectMessagesForContext(
   return selected;
 }
 
-export function buildUserProfileText(profile: { name?: string; background?: string; interests?: string; expertise?: string; location?: string }): string {
-  const parts: string[] = [];
-  if (profile.name) parts.push(`User name: ${profile.name}`);
-  if (profile.background) parts.push(`User background: ${profile.background}`);
-  if (profile.interests) parts.push(`User interests: ${profile.interests}`);
-  if (profile.expertise) parts.push(`User expertise: ${profile.expertise}`);
-  if (profile.location) parts.push(`User location: ${profile.location}`);
-  return parts.join('\n');
+export function buildUserProfileText(profile: { content?: string }): string {
+  return profile.content?.trim() || '';
 }

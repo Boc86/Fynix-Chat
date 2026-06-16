@@ -32,17 +32,6 @@ function initSchema() {
       updated_at INTEGER NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS user_profiles (
-      id TEXT PRIMARY KEY DEFAULT 'main',
-      name TEXT NOT NULL DEFAULT '',
-      background TEXT NOT NULL DEFAULT '',
-      interests TEXT NOT NULL DEFAULT '',
-      expertise TEXT NOT NULL DEFAULT '',
-      location TEXT NOT NULL DEFAULT '',
-      created_at INTEGER NOT NULL DEFAULT 0,
-      updated_at INTEGER NOT NULL DEFAULT 0
-    );
-
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL DEFAULT '',
@@ -86,6 +75,31 @@ function initSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, timestamp);
   `);
+
+  migrateUserProfile();
+}
+
+function migrateUserProfile() {
+  const tableInfo = db.prepare("PRAGMA table_info('user_profiles')").all();
+  const hasOldColumns = tableInfo.some((c: any) => c.name === 'name' || c.name === 'background');
+  if (hasOldColumns) {
+    db.exec(`
+      DROP TABLE IF EXISTS user_profiles;
+      CREATE TABLE user_profiles (
+        id TEXT PRIMARY KEY DEFAULT 'main',
+        content TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+  } else {
+    db.exec(`CREATE TABLE IF NOT EXISTS user_profiles (
+      id TEXT PRIMARY KEY DEFAULT 'main',
+      content TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0
+    );`);
+  }
 }
 
 function seedDefaults() {
@@ -110,8 +124,8 @@ function seedDefaults() {
   const profile = db.prepare('SELECT id FROM user_profiles WHERE id = ?').get('main');
   if (!profile) {
     const now = Date.now();
-    db.prepare(`INSERT INTO user_profiles (id, name, background, interests, expertise, location, created_at, updated_at)
-      VALUES ('main', '', '', '', '', '', ?, ?)`).run(now, now);
+    db.prepare(`INSERT INTO user_profiles (id, content, created_at, updated_at)
+      VALUES ('main', '', ?, ?)`).run(now, now);
   }
 }
 

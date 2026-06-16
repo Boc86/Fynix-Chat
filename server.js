@@ -38,6 +38,13 @@ function readBody(req) {
   });
 }
 
+function intBools(obj, fields) {
+  for (const f of fields) {
+    if (f in obj) obj[f] = obj[f] ? 1 : 0;
+  }
+  return obj;
+}
+
 async function handleApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const parts = url.pathname.split('/').filter(Boolean);
@@ -97,20 +104,13 @@ async function handleApi(req, res) {
     if (parts[1] === 'user-profile') {
       if (method === 'GET') {
         const row = get('SELECT * FROM user_profiles WHERE id = @id', { id: 'main' });
-        return json(res, 200, row || { id: 'main', name: '', background: '', interests: '', expertise: '', location: '' });
+        return json(res, 200, row || { id: 'main', content: '' });
       }
       if (method === 'PUT') {
         const body = await readBody(req);
-        const fields = [];
-        const params = { id: 'main' };
-        for (const [key, value] of Object.entries(body)) {
-          const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-          fields.push(`${col} = @${key}`);
-          params[key] = value;
-        }
-        fields.push('updated_at = @updatedAt');
-        params.updatedAt = Date.now();
-        run(`UPDATE user_profiles SET ${fields.join(', ')} WHERE id = @id`, params);
+        run('UPDATE user_profiles SET content = @content, updated_at = @updatedAt WHERE id = @id', {
+          id: 'main', content: body.content || '', updatedAt: Date.now()
+        });
         return json(res, 200, { ok: true });
       }
       return json(res, 405, { error: 'Method not allowed' });
@@ -151,10 +151,11 @@ async function handleApi(req, res) {
 
       if (method === 'PUT' && id) {
         const body = await readBody(req);
+        intBools(body, ['isDefault']);
         const fields = [];
         const params = { id };
         for (const [key, value] of Object.entries(body)) {
-          if (key === 'id' || key === 'messages') continue;
+          if (key === 'id') continue;
           const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
           fields.push(`${col} = @${key}`);
           params[key] = value;
@@ -245,6 +246,7 @@ async function handleApi(req, res) {
       }
       if (method === 'PUT') {
         const body = await readBody(req);
+        intBools(body, ['streaming', 'soundEnabled']);
         const fields = [];
         const params = { id: 'user-preferences' };
         for (const [key, value] of Object.entries(body)) {

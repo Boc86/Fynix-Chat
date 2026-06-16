@@ -5,27 +5,13 @@ import { useUserProfile } from '@/lib/hooks'
 export function UserProfilePanel() {
   const { setActivePanel } = useUIStore()
   const { profile, updateProfile } = useUserProfile()
-  const [form, setForm] = useState({
-    name: profile?.name || '',
-    background: profile?.background || '',
-    interests: profile?.interests || '',
-    expertise: profile?.expertise || '',
-    location: profile?.location || ''
-  })
+  const [content, setContent] = useState(profile?.content || '')
   const [saved, setSaved] = useState(false)
 
   const handleSave = async () => {
-    await updateProfile(form)
+    await updateProfile({ content })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
-  }
-
-  if (!profile) {
-    return (
-      <div className="h-full flex items-center justify-center text-text-muted text-sm">
-        Loading...
-      </div>
-    )
   }
 
   return (
@@ -42,67 +28,17 @@ export function UserProfilePanel() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <p className="text-sm text-text-secondary">
-          Share information about yourself so the AI can tailor responses to your context.
+          Describe yourself, your background, interests, and preferences. This context will be included in every conversation.
         </p>
 
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-text-primary mb-1 block">Name</label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="Your name"
-              className="w-full px-4 py-2.5 bg-surface-secondary border-none rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-text-primary mb-1 block">Background</label>
-            <input
-              type="text"
-              value={form.background}
-              onChange={e => setForm(f => ({ ...f, background: e.target.value }))}
-              placeholder="e.g. Software engineer, student, researcher"
-              className="w-full px-4 py-2.5 bg-surface-secondary border-none rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-text-primary mb-1 block">Interests</label>
-            <input
-              type="text"
-              value={form.interests}
-              onChange={e => setForm(f => ({ ...f, interests: e.target.value }))}
-              placeholder="e.g. Machine learning, photography, hiking"
-              className="w-full px-4 py-2.5 bg-surface-secondary border-none rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-text-primary mb-1 block">Expertise</label>
-            <input
-              type="text"
-              value={form.expertise}
-              onChange={e => setForm(f => ({ ...f, expertise: e.target.value }))}
-              placeholder="e.g. Python, React, Data analysis"
-              className="w-full px-4 py-2.5 bg-surface-secondary border-none rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-text-primary mb-1 block">Location</label>
-            <input
-              type="text"
-              value={form.location}
-              onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-              placeholder="e.g. San Francisco, CA"
-              className="w-full px-4 py-2.5 bg-surface-secondary border-none rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            />
-          </div>
-        </div>
+        <textarea
+          value={content}
+          onChange={e => setContent(e.target.value)}
+          placeholder="# User Profile&#10;&#10;## Background&#10;...&#10;&#10;## Interests&#10;...&#10;&#10;## Expertise&#10;..."
+          className="w-full h-full min-h-[300px] px-4 py-3 bg-surface-secondary border-none rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none font-mono text-sm leading-relaxed"
+        />
       </div>
 
       <div className="p-4 border-t border-surface-tertiary">

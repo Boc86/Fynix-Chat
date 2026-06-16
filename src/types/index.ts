@@ -36,11 +36,7 @@ export interface Persona {
 
 export interface UserProfile {
   id: string;
-  name: string;
-  background: string;
-  interests: string;
-  expertise: string;
-  location: string;
+  content: string;
 }
 
 export interface UserPreferences {
