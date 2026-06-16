@@ -7,7 +7,7 @@ import { usePreferences, usePersonas, useApiConfigs, useUserProfile } from '@/li
 import { createNIMClient } from '@/lib/providers/nvidia-nim'
 import { buildUserProfileText } from '@/lib/providers/context-truncation'
 import { generateId } from '@/lib/storage'
-import { updateConversation } from '@/lib/api'
+import { updateConversation, fetchConversation } from '@/lib/api'
 import type { Message, Attachment } from '@/types'
 
 function formatFileSize(bytes: number): string {
@@ -31,7 +31,8 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     setEditingMessage,
     clearEditingMessage,
     setMessages,
-    setCurrentConversation
+    setCurrentConversation,
+    setCurrentConversationTitle
   } = useChatStore()
   const { toggleSidebar, activePersonaId } = useUIStore()
   const { preferences } = usePreferences()
@@ -54,6 +55,19 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const creatingConvIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (currentConversationId && currentConversationId !== creatingConvIdRef.current) {
+      fetchConversation(currentConversationId).then(conv => {
+        if (conv) {
+          setMessages(conv.messages)
+          setCurrentConversationTitle(conv.title)
+        }
+      })
+    }
+  }, [currentConversationId, setMessages, setCurrentConversationTitle])
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -144,6 +158,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
       setMessages(updatedMessages)
       setIsLoading(true)
       convId = await onCreateConversation()
+      creatingConvIdRef.current = convId
       setCurrentConversation(convId)
       if (onRenameConversation) {
         const title = userContent.slice(0, 80) || 'New Chat'
@@ -257,6 +272,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
         console.error('Chat error:', err)
       }
     } finally {
+      creatingConvIdRef.current = null
       setIsLoading(false)
       setAbortController(null)
       clearStreamingContent()

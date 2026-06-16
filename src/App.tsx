@@ -12,7 +12,7 @@ import type { Theme } from './types'
 export function App() {
   const { theme, setTheme, sidebarOpen, activePanel, closeSidebar } = useUIStore()
   const { setMessages, setCurrentConversation, setCurrentConversationTitle } = useChatStore()
-  const { conversations, activeConversationId, setActiveConversation, getConversation, createConversation, deleteConversation, updateConversation } = useConversations()
+  const { conversations, activeConversationId, setActiveConversation, createConversation, deleteConversation, updateConversation } = useConversations()
   const { preferences } = usePreferences()
 
   useEffect(() => {
@@ -31,18 +31,12 @@ export function App() {
       setCurrentConversation(activeConversationId)
       const conv = conversations.find(c => c.id === activeConversationId)
       if (conv) setCurrentConversationTitle(conv.title)
-      getConversation(activeConversationId).then(conv => {
-        if (conv && !useChatStore.getState().isLoading) {
-          setMessages(conv.messages)
-          setCurrentConversationTitle(conv.title)
-        }
-      })
     } else {
       setMessages([])
       setCurrentConversation(null)
       setCurrentConversationTitle('')
     }
-  }, [activeConversationId, getConversation, setMessages, setCurrentConversation, setCurrentConversationTitle, conversations])
+  }, [activeConversationId, setMessages, setCurrentConversation, setCurrentConversationTitle, conversations])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
