@@ -124,19 +124,19 @@ export function App() {
           onRenameConversation={handleRenameConversation}
         />
 
-        {/* Desktop edge tap zones */}
-        <div className="hidden md:block">
-          <button
-            onClick={() => useUIStore.getState().toggleOverlay('conversations')}
-            className="fixed left-0 top-0 bottom-24 w-10 z-10 cursor-pointer"
-            aria-label="Open conversations"
-          />
-          <button
-            onClick={() => useUIStore.getState().toggleOverlay('tools')}
-            className="fixed right-0 top-0 bottom-24 w-10 z-10 cursor-pointer"
-            aria-label="Open tools"
-          />
-        </div>
+        {/* Desktop & mobile edge tap zones */}
+        <button
+          onClick={() => useUIStore.getState().toggleOverlay('conversations')}
+          className="fixed left-0 top-0 bottom-24 w-10 md:w-10 z-10 cursor-pointer"
+          style={{ touchAction: 'none' }}
+          aria-label="Open conversations"
+        />
+        <button
+          onClick={() => useUIStore.getState().toggleOverlay('tools')}
+          className="fixed right-0 top-0 bottom-24 w-10 md:w-10 z-10 cursor-pointer"
+          style={{ touchAction: 'none' }}
+          aria-label="Open tools"
+        />
       </main>
 
       <ToastContainer />

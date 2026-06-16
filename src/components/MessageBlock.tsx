@@ -33,9 +33,10 @@ interface MessageBlockProps {
   isFirst: boolean
   onEdit?: (msg: Message) => void
   style?: React.CSSProperties
+  isStreaming?: boolean
 }
 
-export function MessageBlock({ message, isFirst, onEdit, style }: MessageBlockProps) {
+export function MessageBlock({ message, isFirst, onEdit, style, isStreaming }: MessageBlockProps) {
   const isUser = message.role === 'user'
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>()
 
@@ -110,6 +111,7 @@ export function MessageBlock({ message, isFirst, onEdit, style }: MessageBlockPr
               >
                 {message.content}
               </ReactMarkdown>
+              {isStreaming && <span className="streaming-cursor" />}
             </div>
           )}
         </div>

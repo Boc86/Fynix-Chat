@@ -287,7 +287,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
 
   return (
     <div className="flex-1 flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-0 py-24 pb-36 relative">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-0 py-24 pb-36 relative">
         {messages.length === 0 && !isLoading && (
           <div className="h-full flex flex-col items-center justify-center text-text-muted px-6">
             <div className="relative w-20 h-20 mb-5">
@@ -308,12 +308,14 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
         <div className="max-w-3xl mx-auto space-y-8">
           {messages.map((message, idx) => {
             const prevRole = idx > 0 ? messages[idx - 1]?.role : null
+            const isLastAssistant = idx === messages.length - 1 && message.role === 'assistant'
             return (
               <MessageBlock
                 key={message.id}
                 message={message}
                 isFirst={prevRole !== message.role}
                 onEdit={message.role === 'user' ? handleEditMessage : undefined}
+                isStreaming={isLoading && isLastAssistant}
               />
             )
           })}
@@ -321,11 +323,21 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
           {isLoading && streamingContent === '' && (
             <div className="px-4 md:px-8">
               <div className="role-dot" />
-              <div className="flex items-center gap-1.5 pl-1">
-                <span className="w-2 h-2 rounded-full bg-accent-primary/60 animate-pulse" />
-                <span className="w-2 h-2 rounded-full bg-accent-primary/40 animate-pulse" style={{ animationDelay: '0.2s' }} />
-                <span className="w-2 h-2 rounded-full bg-accent-primary/20 animate-pulse" style={{ animationDelay: '0.4s' }} />
+              <div className="flex items-center gap-3 pl-1">
+                <div className="thinking-indicator">
+                  <div className="thinking-ring" />
+                  <div className="thinking-ring" />
+                  <div className="thinking-ring" />
+                  <div className="thinking-dot" />
+                </div>
+                <span className="text-sm text-text-muted/70 animate-pulse" style={{ animationDuration: '2s' }}>Thinking</span>
               </div>
+            </div>
+          )}
+
+          {isLoading && streamingContent !== '' && (
+            <div className="px-4 md:px-8">
+              <div className="streaming-bar" />
             </div>
           )}
 
