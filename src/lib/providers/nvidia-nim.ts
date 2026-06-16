@@ -119,7 +119,11 @@ export class NIMChatClient {
         return this.singleRound(apiMessages, { model: this.model, temperature, max_tokens: maxTokens }, stream ?? false, onChunk, onComplete);
       }
 
-      return this.toolLoop(apiMessages, { model: this.model, temperature, max_tokens: maxTokens, tools }, stream ?? false, onChunk, onComplete, onToolCall!);
+      try {
+        return await this.toolLoop(apiMessages, { model: this.model, temperature, max_tokens: maxTokens, tools }, stream ?? false, onChunk, onComplete, onToolCall!);
+      } catch {
+        return this.singleRound(apiMessages, { model: this.model, temperature, max_tokens: maxTokens }, stream ?? false, onChunk, onComplete);
+      }
     } catch (err) {
       if (err instanceof TypeError && (err.message.includes('NetworkError') || err.message.includes('Failed to fetch'))) {
         const msg = `Cannot reach ${this.baseUrl}. Ensure the app is served through the Docker server (port 3000).`;
