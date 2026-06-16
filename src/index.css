@@ -5,27 +5,58 @@
 @tailwind utilities;
 
 :root {
-  --color-surface-primary: #ffffff;
-  --color-surface-secondary: #f5f5f5;
-  --color-surface-tertiary: #e5e5e5;
-  --color-surface-hover: #ebebeb;
+  --color-surface-primary: #fafafa;
+  --color-surface-secondary: #f0f0f0;
+  --color-surface-tertiary: #e0e0e0;
+  --color-surface-hover: #e8e8e8;
   --color-accent-primary: #f97316;
   --color-accent-secondary: #ea580c;
-  --color-text-primary: #1a1a1a;
-  --color-text-secondary: #666666;
-  --color-text-muted: #999999;
+  --color-text-primary: #0a0a0a;
+  --color-text-secondary: #525252;
+  --color-text-muted: #8a8a8a;
 }
 
 .dark {
-  --color-surface-primary: #0a0a0a;
-  --color-surface-secondary: #141414;
-  --color-surface-tertiary: #1f1f1f;
-  --color-surface-hover: #2a2a2a;
+  --color-surface-primary: #050505;
+  --color-surface-secondary: #0f0f0f;
+  --color-surface-tertiary: #1a1a1a;
+  --color-surface-hover: #252525;
   --color-accent-primary: #f97316;
   --color-accent-secondary: #ea580c;
-  --color-text-primary: #ececec;
-  --color-text-secondary: #a0a0a0;
-  --color-text-muted: #666666;
+  --color-text-primary: #f0f0f0;
+  --color-text-secondary: #9a9a9a;
+  --color-text-muted: #5a5a5a;
+}
+
+/* ── Background spotlight ── */
+#root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.dark #root::before {
+  background: radial-gradient(ellipse 70% 45% at 50% 15%, rgba(249, 115, 22, 0.08), transparent 70%);
+  animation: spotlightPulse 6s ease-in-out infinite;
+}
+
+.light #root::before {
+  background: radial-gradient(ellipse 60% 40% at 50% 10%, rgba(249, 115, 22, 0.04), transparent 60%);
+}
+
+/* ── Subtle noise texture overlay ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -2;
+  opacity: 0.02;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
 }
 
 * {
@@ -45,9 +76,10 @@ body {
   overflow: hidden;
 }
 
+/* ── Custom scrollbar ── */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -55,14 +87,109 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-surface-tertiary);
-  border-radius: 4px;
+  background: var(--color-accent-primary);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
+  background: var(--color-accent-secondary);
 }
 
+/* ── Glass panel utilities ── */
+.glass-panel {
+  background-color: color-mix(in srgb, var(--color-surface-secondary) 75%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-surface-tertiary);
+}
+
+.dark .glass-panel {
+  background-color: color-mix(in srgb, var(--color-surface-primary) 65%, transparent);
+}
+
+.glass-panel-strong {
+  background-color: color-mix(in srgb, var(--color-surface-secondary) 88%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--color-surface-tertiary);
+}
+
+.dark .glass-panel-strong {
+  background-color: color-mix(in srgb, var(--color-surface-primary) 78%, transparent);
+}
+
+/* ── Animated glow border for active sidebar item ── */
+.glow-border-left {
+  position: relative;
+}
+
+.glow-border-left::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--color-accent-primary);
+  border-radius: 0 3px 3px 0;
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 4px var(--color-accent-primary); }
+  50% { box-shadow: 0 0 14px var(--color-accent-primary); }
+}
+
+/* ── Chat header shimmer border ── */
+.header-shimmer {
+  position: relative;
+}
+
+.header-shimmer::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-accent-primary), var(--color-accent-secondary), var(--color-accent-primary), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── Glow ring for AI avatar ── */
+.avatar-ring {
+  position: relative;
+}
+
+.avatar-ring::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent-primary);
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.5s;
+}
+
+.group:hover .avatar-ring::after {
+  opacity: 0.6;
+  transform: rotate(180deg);
+}
+
+/* ── Code block accent bar ── */
+.code-block-accent {
+  border-left: 3px solid var(--color-accent-primary);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ── Markdown content ── */
 .markdown-content {
   line-height: 1.6;
 }
@@ -91,6 +218,7 @@ body {
   margin: 1em 0;
   padding: 1em;
   background: var(--color-surface-secondary);
+  border-left: 3px solid var(--color-accent-primary);
   border-radius: 8px;
   overflow-x: auto;
 }
@@ -113,6 +241,10 @@ body {
 .markdown-content a {
   color: var(--color-accent-primary);
   text-decoration: underline;
+}
+
+.markdown-content a:hover {
+  opacity: 0.8;
 }
 
 .markdown-content blockquote {

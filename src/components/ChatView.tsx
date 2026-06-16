@@ -8,6 +8,7 @@ import { createNIMClient } from '@/lib/providers/nvidia-nim'
 import { buildUserProfileText } from '@/lib/providers/context-truncation'
 import { generateId } from '@/lib/storage'
 import { updateConversation, fetchConversation } from '@/lib/api'
+import { useToastStore } from '@/stores/toast-store'
 import type { Message, Attachment } from '@/types'
 
 function formatFileSize(bytes: number): string {
@@ -56,6 +57,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const addToast = useToastStore(s => s.addToast)
   const creatingConvIdRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -111,13 +113,13 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     if (!input.trim() && attachedFiles.length === 0) return
     if (isLoading) return
     if (!apiConfig) {
-      alert('Please configure your API settings first')
+      addToast('Please configure your API settings first', 'error')
       return
     }
 
     const persona = activePersona || personas[0]
     if (!persona) {
-      alert('No persona configured')
+      addToast('No persona configured', 'error')
       return
     }
 
@@ -270,6 +272,7 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
         console.error('Chat error:', err)
+        addToast(err.message, 'error')
       }
     } finally {
       creatingConvIdRef.current = null
@@ -282,7 +285,11 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
           ...updatedMessages.slice(0, -1),
           { ...assistantMessage, content: assistantContent }
         ]
-        await updateConversation(convId, { messages: finalMessages })
+        try {
+          await updateConversation(convId, { messages: finalMessages })
+        } catch (err) {
+          addToast('Failed to save messages', 'error')
+        }
       }
     }
   }
@@ -296,10 +303,10 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
 
   return (
     <div className="flex-1 flex flex-col h-full">
-      <header className="flex items-center gap-3 p-3 border-b border-surface-tertiary bg-surface-primary">
+      <header className="header-shimmer flex items-center gap-3 px-4 py-3">
         <button
           onClick={toggleSidebar}
-          className="p-2 rounded-lg hover:bg-surface-hover text-text-secondary md:hidden"
+          className="p-2 rounded-lg hover:bg-surface-hover hover:scale-[1.05] active:scale-[0.95] text-text-secondary transition-all md:hidden"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -311,14 +318,16 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
             {currentConversationTitle || 'New Chat'}
           </h2>
           {activePersona && (
-            <p className="text-xs text-text-muted truncate">{activePersona.name}</p>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-primary/10 text-accent-primary text-xs font-medium">
+              {activePersona.name}
+            </span>
           )}
         </div>
 
         {isLoading && (
           <button
             onClick={() => useChatStore.getState().abortStream()}
-            className="px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg text-sm hover:bg-red-500/20 transition-colors"
+            className="px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg text-sm hover:bg-red-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all"
           >
             Stop
           </button>
@@ -328,10 +337,17 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-text-muted">
-            <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            <p className="text-lg font-medium mb-1">Start a conversation</p>
+            <div className="relative w-24 h-24 mb-6">
+              <div className="absolute inset-0 rounded-full bg-accent-primary/10 animate-float" />
+              <div className="absolute inset-4 rounded-full bg-accent-primary/20 animate-float" style={{ animationDelay: '0.5s' }} />
+              <div className="absolute inset-8 rounded-full bg-accent-primary/30 animate-float" style={{ animationDelay: '1s' }} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <svg className="w-10 h-10 text-accent-primary/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-lg font-medium mb-1 text-text-primary">Start a conversation</p>
             <p className="text-sm">Ask a question or share something to begin</p>
           </div>
         )}
@@ -346,15 +362,13 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
 
         {isLoading && streamingContent === '' && messages[messages.length - 1]?.role === 'assistant' && (
           <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-accent-primary flex items-center justify-center text-white text-sm font-medium">
-              AI
+            <div className="avatar-ring group w-8 h-8 rounded-full bg-surface-tertiary flex items-center justify-center text-sm font-medium text-text-primary overflow-hidden shrink-0">
+              <span className="relative z-10">AI</span>
             </div>
-            <div className="flex-1">
-              <div className="animate-pulse-subtle flex gap-1">
-                <span className="w-2 h-2 bg-text-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-text-muted rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-text-muted rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
+            <div className="flex items-center gap-2 px-4 py-3 glass-panel rounded-2xl">
+              <span className="w-2.5 h-2.5 rounded-full bg-accent-primary animate-typing-wave" />
+              <span className="w-2.5 h-2.5 rounded-full bg-accent-primary animate-typing-wave" style={{ animationDelay: '0.2s' }} />
+              <span className="w-2.5 h-2.5 rounded-full bg-accent-primary animate-typing-wave" style={{ animationDelay: '0.4s' }} />
             </div>
           </div>
         )}
@@ -362,104 +376,110 @@ export function ChatView({ onCreateConversation, onRenameConversation }: { onCre
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t border-surface-tertiary">
-        {attachedFiles.length > 0 && (
-          <div className="flex gap-2 mb-3 flex-wrap">
-            {attachedFiles.map((file, index) => (
-              <div key={index} className="relative group">
-                {file.type.startsWith('image/') ? (
-                  <img
-                    src={URL.createObjectURL(file)}
-                    alt={file.name}
-                    className="w-20 h-20 object-cover rounded-lg"
-                  />
-                ) : (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-surface-secondary rounded-lg border border-surface-tertiary max-w-48">
-                    <svg className="w-5 h-5 shrink-0 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    <div className="min-w-0">
-                      <div className="text-sm text-text-primary truncate">{file.name}</div>
-                      <div className="text-xs text-text-muted">{formatFileSize(file.size)}</div>
+      <div className="px-4 pb-4 pt-2">
+        <div className="glass-panel rounded-2xl overflow-hidden shadow-lg">
+          {attachedFiles.length > 0 && (
+            <div className="flex gap-2 p-3 pb-0 flex-wrap">
+              {attachedFiles.map((file, index) => (
+                <div key={index} className="relative group">
+                  {file.type.startsWith('image/') ? (
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={file.name}
+                      className="w-20 h-20 object-cover rounded-lg"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-surface-secondary rounded-lg border border-surface-tertiary max-w-48">
+                      <svg className="w-5 h-5 shrink-0 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      <div className="min-w-0">
+                        <div className="text-sm text-text-primary truncate">{file.name}</div>
+                        <div className="text-xs text-text-muted">{formatFileSize(file.size)}</div>
+                      </div>
                     </div>
-                  </div>
-                )}
-                <button
-                  onClick={() => removeAttachedFile(index)}
-                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  x
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="flex gap-3 items-end">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileAttach}
-            accept="*/*"
-            multiple
-            className="hidden"
-          />
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2.5 rounded-lg bg-surface-secondary hover:bg-surface-hover text-text-secondary transition-colors"
-            title="Attach file"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-            </svg>
-          </button>
-
-          {editingMessageId && (
-            <button
-              type="button"
-              onClick={cancelEdit}
-              className="px-3 py-3 rounded-lg bg-surface-secondary hover:bg-surface-hover text-text-secondary text-sm transition-colors"
-            >
-              Cancel
-            </button>
+                  )}
+                  <button
+                    onClick={() => removeAttachedFile(index)}
+                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    x
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
 
-          <div className="flex-1 relative">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={editingMessageId ? 'Edit your message...' : 'Type your message...'}
-              className="w-full px-4 py-3 bg-surface-secondary border-none rounded-xl text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary"
-              rows={1}
-              style={{ fontSize: `${useUIStore.getState().fontSizeValue}px` }}
+          <form onSubmit={handleSubmit} className="flex gap-2 items-end p-3">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileAttach}
+              accept="*/*"
+              multiple
+              className="hidden"
             />
-          </div>
 
-          <button
-            type="submit"
-            disabled={(!input.trim() && attachedFiles.length === 0) || isLoading}
-            className="px-5 py-3 bg-accent-primary hover:bg-accent-secondary disabled:bg-surface-tertiary disabled:text-text-muted text-white rounded-xl font-medium transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
-          </button>
-        </form>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2.5 rounded-xl bg-surface-tertiary/50 hover:bg-surface-hover hover:scale-[1.05] active:scale-[0.95] text-text-secondary transition-all"
+              title="Attach file"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+            </button>
+
+            {editingMessageId && (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="px-3 py-2.5 rounded-xl bg-surface-tertiary/50 hover:bg-surface-hover hover:scale-[1.05] active:scale-[0.95] text-text-secondary text-sm transition-all"
+              >
+                Cancel
+              </button>
+            )}
+
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={editingMessageId ? 'Edit your message...' : 'Type your message...'}
+                className="w-full px-4 py-2.5 bg-surface-tertiary/30 border border-surface-tertiary/50 rounded-xl text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:border-accent-primary/50 focus:shadow-[0_0_8px_var(--color-accent-primary)] transition-all"
+                rows={1}
+                style={{ fontSize: `${useUIStore.getState().fontSizeValue}px` }}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={(!input.trim() && attachedFiles.length === 0) || isLoading}
+              className="group p-3 bg-accent-primary hover:bg-accent-secondary disabled:bg-surface-tertiary disabled:text-text-muted text-white rounded-xl transition-all hover:scale-[1.05] active:scale-[0.95] hover:shadow-[0_0_12px_var(--color-accent-primary)] disabled:shadow-none"
+            >
+              <svg className="w-5 h-5 transition-transform group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   )
 }
 
-function FileAttachmentCard({ attachment }: { attachment: Attachment }) {
+function FileAttachmentCard({ attachment, light }: { attachment: Attachment; light?: boolean }) {
   return (
     <a
       href={attachment.url}
       download={attachment.name}
-      className="flex items-center gap-2 px-3 py-2 bg-surface-primary/10 rounded-lg border border-surface-tertiary/30 hover:bg-surface-primary/20 transition-colors no-underline text-inherit max-w-64"
+      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors no-underline max-w-64 ${
+        light
+          ? 'bg-white/10 border border-white/20 hover:bg-white/20 text-white'
+          : 'bg-surface-primary/10 border border-surface-tertiary/30 hover:bg-surface-primary/20 text-inherit'
+      }`}
       target="_blank"
       rel="noopener noreferrer"
     >
@@ -478,21 +498,27 @@ function MessageBubble({ message, onEdit }: { message: Message; onEdit?: (msg: M
   const isUser = message.role === 'user'
 
   return (
-    <div className={`flex gap-3 group ${isUser ? 'flex-row-reverse' : ''}`}>
-      <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium ${
-        isUser ? 'bg-accent-primary text-white' : 'bg-surface-tertiary text-text-primary'
+    <div className={`flex gap-3 group ${isUser ? 'flex-row-reverse' : ''} animate-fade-in-up`}>
+      <div className={`avatar-ring group w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium overflow-hidden ${
+        isUser
+          ? 'bg-gradient-to-br from-accent-primary to-accent-secondary text-white shadow-[0_0_6px_var(--color-accent-primary)]'
+          : 'bg-surface-tertiary text-text-primary'
       }`}>
-        {isUser ? 'U' : 'AI'}
+        <span className="relative z-10">{isUser ? 'U' : 'AI'}</span>
       </div>
 
       <div className={`flex-1 max-w-2xl ${isUser ? 'text-right' : ''}`}>
-        <div className={`inline-block text-left px-4 py-3 rounded-2xl relative ${
-          isUser ? 'bg-accent-primary text-white' : 'bg-surface-secondary text-text-primary'
-        }`}>
+        <div
+          className={`inline-block text-left px-4 py-3 relative transition-all duration-200 ${
+            isUser
+              ? 'bg-gradient-to-br from-accent-primary to-accent-secondary text-white rounded-2xl shadow-lg shadow-accent-primary/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-accent-primary/30'
+              : 'glass-panel rounded-2xl text-text-primary hover:-translate-y-0.5 hover:shadow-lg'
+          }`}
+        >
           {isUser && onEdit && (
             <button
               onClick={() => onEdit(message)}
-              className="absolute -top-2 -right-2 w-6 h-6 bg-surface-secondary border border-surface-tertiary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-surface-hover"
+              className="absolute -top-2 -right-2 w-7 h-7 bg-surface-secondary border border-surface-tertiary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-surface-hover shadow-sm"
               title="Edit message"
             >
               <svg className="w-3.5 h-3.5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -505,7 +531,7 @@ function MessageBubble({ message, onEdit }: { message: Message; onEdit?: (msg: M
               <img key={att.id} src={att.url} alt={att.name} className="max-w-xs rounded-lg mb-2" />
             ) : (
               <div key={att.id} className="mb-2">
-                <FileAttachmentCard attachment={att} />
+                <FileAttachmentCard attachment={att} light={isUser} />
               </div>
             )
           ))}
@@ -523,10 +549,15 @@ function MessageBubble({ message, onEdit }: { message: Message; onEdit?: (msg: M
                       <code className={className}>{children}</code>
                     ) : (
                       <SyntaxHighlighter
-                        customStyle={{ background: 'var(--color-surface-tertiary)', margin: '1em 0', borderRadius: '8px' }}
+                        customStyle={{
+                          background: 'var(--color-surface-tertiary)',
+                          margin: '1em 0',
+                          borderRadius: '8px',
+                          borderLeft: '3px solid var(--color-accent-primary)'
+                        }}
                         language={match ? match[1] : 'text'}
                         PreTag="div"
-                        className="rounded-lg !bg-surface-tertiary/50 !my-2"
+                        className="rounded-lg !my-2"
                       >
                         {String(children).replace(/\n$/, '')}
                       </SyntaxHighlighter>
@@ -539,7 +570,7 @@ function MessageBubble({ message, onEdit }: { message: Message; onEdit?: (msg: M
             </div>
           )}
         </div>
-        <div className="text-xs text-text-muted mt-1 px-1">
+        <div className="text-xs text-text-muted mt-1.5 px-1">
           {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
       </div>
