@@ -360,12 +360,15 @@ async function handleApi(req, res) {
 
       try {
         const searxngRes = await fetch(`http://searxng:8080/search?q=${encodeURIComponent(q)}&format=json`);
+        console.error('SearXNG response status:', searxngRes.status);
         if (!searxngRes.ok) {
           const text = await searxngRes.text();
+          console.error('SearXNG error body:', text.slice(0, 500));
           return json(res, 502, { error: `SearXNG returned ${searxngRes.status}` });
         }
 
         const data = await searxngRes.json();
+        console.error('SearXNG results count:', data.results?.length || 0);
         const results = (data.results || []).map(r => ({
           title: r.title || '',
           snippet: r.content || '',
@@ -374,7 +377,8 @@ async function handleApi(req, res) {
 
         return json(res, 200, { results, query: q });
       } catch (err) {
-        return json(res, 502, { error: 'SearXNG unreachable. Add the searxng container to your stack on the same Docker network.' });
+        console.error('SearXNG fetch failed:', err);
+        return json(res, 502, { error: `SearXNG unreachable: ${err instanceof Error ? err.message : err}` });
       }
     }
 
