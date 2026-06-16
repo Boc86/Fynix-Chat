@@ -156,6 +156,34 @@ export class NIMChatClient {
     return content;
   }
 
+  private parseDSMLToolCalls(content: string): { toolCalls: ToolCall[]; cleanedContent: string } {
+    const toolCalls: ToolCall[] = [];
+    const regex = /<DSML｜invoke name="([^"]+)">\s*([\s\S]*?)<\/DSML｜invoke>/g;
+    let cleaned = content;
+    let match;
+
+    while ((match = regex.exec(content)) !== null) {
+      const name = match[1] || '';
+      const paramsBody = match[2] || '';
+      const args: Record<string, string> = {};
+      const paramRegex = /<DSML｜parameter name="([^"]+)"[^>]*>([\s\S]*?)<\/DSML｜parameter>/g;
+      let pm;
+      while ((pm = paramRegex.exec(paramsBody)) !== null) {
+        const key = pm[1];
+        const val = pm[2];
+        if (key) args[key] = val || '';
+      }
+      toolCalls.push({
+        id: `dsml_${toolCalls.length}_${Date.now()}`,
+        type: 'function',
+        function: { name, arguments: JSON.stringify(args) },
+      });
+      cleaned = cleaned.replace(match[0], '').trim();
+    }
+
+    return { toolCalls, cleanedContent: cleaned };
+  }
+
   private async toolLoop(
     apiMessages: NIMChatCompletionRequest['messages'],
     base: { model: string; temperature?: number; max_tokens?: number; tools: ToolDefinition[] },
@@ -182,10 +210,19 @@ export class NIMChatClient {
       const choice = data.choices?.[0];
       if (!choice) throw new Error('No response from API');
 
-      const toolCalls: ToolCall[] | undefined = choice.message?.tool_calls;
+      let rawContent = choice.message?.content || '';
+      let toolCalls: ToolCall[] | undefined = choice.message?.tool_calls;
+
+      if (!toolCalls && rawContent.includes('<DSML｜invoke')) {
+        const parsed = this.parseDSMLToolCalls(rawContent);
+        toolCalls = parsed.toolCalls.length > 0 ? parsed.toolCalls : undefined;
+        if (toolCalls && rawContent !== parsed.cleanedContent) {
+          rawContent = parsed.cleanedContent;
+        }
+      }
 
       if (toolCalls && toolCalls.length > 0) {
-        accumulatedContent += choice.message?.content || '';
+        accumulatedContent += rawContent;
 
         messages.push({
           role: 'assistant',
@@ -200,7 +237,7 @@ export class NIMChatClient {
         continue;
       }
 
-      accumulatedContent += choice.message?.content || '';
+      accumulatedContent += rawContent;
       const finalContent = accumulatedContent;
 
       if (wantsStream && onChunk) {
